@@ -1,0 +1,93 @@
+.app {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+h1 {
+  margin: 0;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.convert-form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.convert-form__row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.convert-form input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, Menlo, monospace;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.convert-form button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.result {
+  display: grid;
+  justify-items: center;
+}
+
+.result h2 {
+  justify-self: start;
+}
+
+.result__time {
+  margin: 0.75rem 0 0;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 1.25rem;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.recent-list__entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.recent-list__time {
+  font-family: ui-monospace, Menlo, monospace;
+  font-weight: 600;
+}
