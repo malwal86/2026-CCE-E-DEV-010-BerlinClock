@@ -1,0 +1,41 @@
+name: berlin-clock
+
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: berlin_clock
+      POSTGRES_USER: berlin
+      POSTGRES_PASSWORD: berlin
+    ports:
+      - "5433:5432"   # 5433 on the host avoids clashing with a locally installed PostgreSQL
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U berlin -d berlin_clock"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/berlin_clock
+      DB_USERNAME: berlin
+      DB_PASSWORD: berlin
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
