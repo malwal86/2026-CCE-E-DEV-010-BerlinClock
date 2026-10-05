@@ -1,4 +1,4 @@
-package com.kata.berlinclock.web;
+package com.kata.berlinclock.error;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
