@@ -5,7 +5,6 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +60,8 @@ class ConversionControllerTest {
 
 	@Test
 	void listsRecentConversionsNewestFirst() {
-		service.convert(LocalTime.parse("00:00:00"));
-		service.convert(LocalTime.parse("23:59:59"));
+		service.convert("00:00:00");
+		service.convert("23:59:59");
 
 		assertThat(mvc.get().uri("/api/conversions"))
 				.hasStatusOk()
