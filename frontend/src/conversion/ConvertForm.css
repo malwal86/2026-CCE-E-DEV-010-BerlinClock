@@ -29,3 +29,12 @@
   background: var(--accent);
   cursor: pointer;
 }
+
+.convert-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.convert-form__error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+}

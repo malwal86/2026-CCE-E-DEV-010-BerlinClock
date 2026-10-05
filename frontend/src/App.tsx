@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { convertTime, fetchRecentConversions } from './conversion/api'
+import { ApiProblem, convertTime, fetchRecentConversions } from './conversion/api'
 import type { Conversion } from './conversion/types'
 import { BerlinClock } from './clock/BerlinClock'
 import { ConvertForm } from './conversion/ConvertForm'
@@ -9,13 +9,22 @@ import './App.css'
 function App() {
   const [result, setResult] = useState<Conversion>()
   const [recent, setRecent] = useState<Conversion[]>([])
+  const [error, setError] = useState<string>()
 
   useEffect(() => {
     fetchRecentConversions().then(setRecent)
   }, [])
 
   async function convert(time: string) {
-    setResult(await convertTime(time))
+    try {
+      setResult(await convertTime(time))
+      setError(undefined)
+    } catch (problem) {
+      if (!(problem instanceof ApiProblem)) throw problem
+      setResult(undefined)
+      setError(problem.message)
+      return
+    }
     setRecent(await fetchRecentConversions())
   }
 
@@ -23,7 +32,7 @@ function App() {
     <main className="app">
       <h1>Berlin Clock</h1>
       <section className="panel" aria-label="Convert a time">
-        <ConvertForm onConvert={convert} />
+        <ConvertForm onConvert={convert} error={error} />
       </section>
       {result && (
         <section className="panel result" aria-labelledby="result-heading">
