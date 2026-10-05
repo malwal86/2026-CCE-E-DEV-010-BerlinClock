@@ -2,6 +2,9 @@ spring:
   application:
     name: berlin-clock
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/berlin_clock}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/berlin_clock}
     username: ${DB_USERNAME:berlin}
     password: ${DB_PASSWORD:berlin}
+server:
+  # Behind nginx: build absolute URLs (e.g. Location) from the X-Forwarded-* / Host headers.
+  forward-headers-strategy: framework
