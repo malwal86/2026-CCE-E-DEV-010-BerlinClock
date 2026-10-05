@@ -99,8 +99,8 @@
 						</goals>
 					</execution>
 					<execution>
-						<!-- The Berlin Clock rules live in the domain package: TDD keeps it fully covered. -->
-						<id>check-domain-coverage</id>
+						<!-- The Berlin Clock rules live in the clock package: TDD keeps it fully covered. -->
+						<id>check-clock-coverage</id>
 						<phase>verify</phase>
 						<goals>
 							<goal>check</goal>
@@ -110,7 +110,7 @@
 								<rule>
 									<element>PACKAGE</element>
 									<includes>
-										<include>com.kata.berlinclock.domain</include>
+										<include>com.kata.berlinclock.clock</include>
 									</includes>
 									<limits>
 										<limit>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { convertTime, fetchRecentConversions } from './api/conversions'
-import type { Conversion } from './api/types'
-import { BerlinClock } from './components/BerlinClock'
-import { ConvertForm } from './components/ConvertForm'
-import { RecentConversions } from './components/RecentConversions'
+import { convertTime, fetchRecentConversions } from './conversion/api'
+import type { Conversion } from './conversion/types'
+import { BerlinClock } from './clock/BerlinClock'
+import { ConvertForm } from './conversion/ConvertForm'
+import { RecentConversions } from './conversion/RecentConversions'
 import './App.css'
 
 function App() {
