@@ -1,0 +1,21 @@
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1d2433;
+  --muted: #5b6577;
+  --border: #d9dee7;
+  --accent: #0f6e5a;
+  --danger: #b42318;
+  --lamp-off: #3a3f47;
+  --lamp-red: #e0372b;
+  --lamp-yellow: #f5c518;
+  --clock-body: #20242b;
+
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+}

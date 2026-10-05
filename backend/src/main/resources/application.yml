@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: berlin-clock
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/berlin_clock}
+    username: ${DB_USERNAME:berlin}
+    password: ${DB_PASSWORD:berlin}
