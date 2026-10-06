@@ -1,7 +1,8 @@
 import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { BerlinClockRows } from './clock/types'
 import type { Conversion } from './conversion/types'
@@ -37,13 +38,24 @@ let conversions = 0
 /** How many times the fake API was asked to clear the history. */
 let clears = 0
 
+/** How many times the live clock asked the fake API for the time. */
+let ticks = 0
+
 /** A fake API backed by an in-memory history, newest first. */
 function givenTheApiHasHistory(...initial: Conversion[]) {
   const history = [...initial]
   rejections.clear()
   conversions = 0
   clears = 0
+  ticks = 0
   server.use(
+    // The live clock: any time reads as 16:50:06's lamps, the page only needs an answer.
+    http.get('/api/berlin-clock', ({ request }) => {
+      ticks++
+      const time = new URL(request.url).searchParams.get('time')
+      const { id: _id, convertedAt: _convertedAt, ...reading } = conversion(0, '16:50:06')
+      return HttpResponse.json({ ...reading, time })
+    }),
     http.get('/api/conversions', () => HttpResponse.json(history)),
     http.delete('/api/conversions', () => {
       clears++
@@ -503,5 +515,40 @@ describe('Invalid times', () => {
     await screen.findByRole('region', { name: 'Result' })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(input).not.toHaveAttribute('aria-invalid')
+  })
+})
+
+describe('The live clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date(2026, 9, 6, 16, 50, 6))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('is shown above the converter', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    const live = screen.getByRole('region', { name: 'Live' })
+    expect(within(live).getByRole('img', { name: 'Berlin Clock showing 16:50:06' })).toBeInTheDocument()
+    const converter = screen.getByRole('region', { name: 'Convert a time' })
+    expect(live.compareDocumentPosition(converter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('does not save its ticks in the history', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+
+    expect(ticks).toBe(61)
+    expect(conversions).toBe(0)
+    expect(within(screen.getByRole('region', { name: 'Live' })).getByText('16:51:06')).toBeInTheDocument()
+    expect(recentConversions().getAllByRole('listitem')).toHaveLength(1)
   })
 })

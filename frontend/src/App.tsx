@@ -6,6 +6,7 @@ import { BerlinClock } from './clock/BerlinClock'
 import { ClockCode } from './clock/ClockCode'
 import { ConvertForm } from './conversion/ConvertForm'
 import { RecentConversions } from './conversion/RecentConversions'
+import { LiveClock } from './live/LiveClock'
 import './App.css'
 
 /** Puts a page in the address bar, so the result shown can be shared, reloaded and reached with Back. */
@@ -82,6 +83,7 @@ function App() {
   return (
     <main className="app">
       <h1>Berlin Clock</h1>
+      <LiveClock />
       <section className="panel" aria-label="Convert a time">
         <ConvertForm onConvert={convert} error={error} />
       </section>
