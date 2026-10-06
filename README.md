@@ -16,7 +16,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A2 · Clear feedback for invalid times | ✅ Done |
 | A3 · Five-hours row | ✅ Done |
 | A4 · Single-hours row | ✅ Done |
-| A5 – D2 | Planned (see the PDF) |
+| A5 · Five-minutes row | ✅ Done |
+| A6 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -102,6 +103,20 @@ curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 # {"id":4,"time":"14:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RRRR"}
 ```
 
+## Try it yourself (story A5)
+
+1. Type `12:35:00` and press **Convert**. Row 4 shows **Y Y R Y Y R Y** then four dark lamps: seven blocks of five
+   minutes (35 min), with the quarter and half hour marked in red.
+2. Type `12:15:00` and press **Convert**. Row 4 reads **Y Y R**: the quarter-hour marker is red.
+3. Older entries in **Recent conversions** gain the five-minutes row too (`23:59:59` → `YYRYYRYYRYY`), computed on read.
+
+Other kata examples: `00:00:00` and `12:04:00` → `OOOOOOOOOOO`, `12:23:00` → `YYRYOOOOOOO`. Through the API:
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"12:35:00"}'
+# {"id":5,"time":"12:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RROO","fiveMinutes":"YYRYYRYOOOO"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -123,7 +138,7 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `DigitalTimeTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |

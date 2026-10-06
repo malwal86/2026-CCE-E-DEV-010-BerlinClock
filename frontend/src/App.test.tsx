@@ -9,10 +9,11 @@ import { server } from './test/server'
 
 /** What the real API answers for the times these tests convert (the rules live in the backend). */
 const BERLIN_CLOCK: Record<string, BerlinClockRows> = {
-  '00:00:00': { seconds: 'Y', fiveHours: 'OOOO', singleHours: 'OOOO' },
-  '23:59:59': { seconds: 'O', fiveHours: 'RRRR', singleHours: 'RRRO' },
-  '16:35:00': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO' },
-  '14:35:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RRRR' },
+  '00:00:00': { seconds: 'Y', fiveHours: 'OOOO', singleHours: 'OOOO', fiveMinutes: 'OOOOOOOOOOO' },
+  '23:59:59': { seconds: 'O', fiveHours: 'RRRR', singleHours: 'RRRO', fiveMinutes: 'YYRYYRYYRYY' },
+  '16:35:00': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYOOOO' },
+  '14:35:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RRRR', fiveMinutes: 'YYRYYRYOOOO' },
+  '12:35:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYRYOOOO' },
 }
 
 function conversion(id: number, time: string): Conversion {
@@ -88,6 +89,16 @@ describe('Converting a time', () => {
     expect(lampsOf(result.getByTestId('single-hours-row'))).toBe('RRRR')
   })
 
+  it('shows the five minutes row under the single hours row', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '12:35:00{Enter}')
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(lampsOf(result.getByTestId('five-minutes-row'))).toBe('YYRYYRYOOOO')
+  })
+
   it('submits with the Enter key', async () => {
     givenTheApiHasHistory()
     render(<App />)
@@ -136,6 +147,14 @@ describe('Recent conversions', () => {
 
     const entry = (await recentConversions().findAllByRole('listitem'))[0]
     expect(lampsOf(within(entry).getByTestId('single-hours-row'))).toBe('RRRO')
+  })
+
+  it('shows the five minutes row of each conversion, including earlier ones', async () => {
+    givenTheApiHasHistory(conversion(1, '23:59:59'))
+    render(<App />)
+
+    const entry = (await recentConversions().findAllByRole('listitem'))[0]
+    expect(lampsOf(within(entry).getByTestId('five-minutes-row'))).toBe('YYRYYRYYRYY')
   })
 
   it('shows when each conversion was made', async () => {

@@ -7,6 +7,7 @@ const clock = (rows: Partial<BerlinClockRows>): BerlinClockRows => ({
   seconds: 'Y',
   fiveHours: 'OOOO',
   singleHours: 'OOOO',
+  fiveMinutes: 'OOOOOOOOOOO',
   ...rows,
 })
 
@@ -35,5 +36,11 @@ describe('BerlinClock', () => {
     render(<BerlinClock clock={clock({ singleHours: 'RRRR' })} />)
 
     expect(lampsOf(screen.getByTestId('single-hours-row'))).toBe('RRRR')
+  })
+
+  it('shows the five minutes row, eleven lamps with the quarter markers red when lit', () => {
+    render(<BerlinClock clock={clock({ fiveMinutes: 'YYRYYRYYRYY' })} />)
+
+    expect(lampsOf(screen.getByTestId('five-minutes-row'))).toBe('YYRYYRYYRYY')
   })
 })

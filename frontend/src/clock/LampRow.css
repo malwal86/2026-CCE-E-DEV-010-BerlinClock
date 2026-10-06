@@ -1,10 +1,12 @@
+/* Every row is as wide as four 3.5em lamps, so rows with more lamps get narrower ones. */
 .lamp-row {
   display: flex;
   gap: 0.4em;
+  width: 15.2em;
 }
 
 .lamp-row__lamp {
-  width: 3.5em;
+  flex: 1;
   height: 1.75em;
   border-radius: 0.35em;
 }
