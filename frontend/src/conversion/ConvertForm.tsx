@@ -5,9 +5,11 @@ interface Props {
   onConvert: (time: string) => void
   /** Why the last time was rejected, shown next to the input. */
   error?: string
+  /** Why the last conversion failed although the time was fine (the backend or its database is down). */
+  failure?: string
 }
 
-export function ConvertForm({ onConvert, error }: Props) {
+export function ConvertForm({ onConvert, error, failure }: Props) {
   const [time, setTime] = useState('')
 
   function submit(event: FormEvent) {
@@ -34,6 +36,11 @@ export function ConvertForm({ onConvert, error }: Props) {
       {error && (
         <p id="time-error" className="convert-form__error" role="alert">
           {error}
+        </p>
+      )}
+      {failure && (
+        <p className="convert-form__error" role="alert">
+          {failure}
         </p>
       )}
     </form>

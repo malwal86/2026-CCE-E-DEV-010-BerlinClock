@@ -27,9 +27,13 @@ let asked: string[] = []
 /** Times whose answer is held back until the test releases it. */
 const held = new Map<string, () => void>()
 
+/** How the fake backend fails, if it does. */
+let down: 'network' | 'server error' | undefined
+
 function givenTheApiAnswers() {
   asked = []
   held.clear()
+  down = undefined
   server.use(
     http.get('/api/berlin-clock', async ({ request }) => {
       const time = new URL(request.url).searchParams.get('time')!
@@ -37,6 +41,8 @@ function givenTheApiAnswers() {
       if (held.has(time)) {
         await new Promise<void>((release) => held.set(time, release))
       }
+      if (down === 'network') return HttpResponse.error()
+      if (down === 'server error') return new HttpResponse('Bad Gateway', { status: 502 })
       return HttpResponse.json({ time, ...BERLIN_CLOCK[time] })
     }),
   )
@@ -62,6 +68,8 @@ async function passes(ms: number) {
 function liveClock() {
   return within(screen.getByRole('region', { name: 'Live' }))
 }
+
+const BANNER = 'Backend unavailable. Retrying…'
 
 beforeEach(() => {
   // Only the clock and timers are faked: fetch and promises run for real, so MSW answers as usual.
@@ -131,5 +139,51 @@ describe('The live clock', () => {
 
     expect(asked).toEqual(['16:50:06'])
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('The live clock when the backend is unavailable', () => {
+  it.each(['network', 'server error'] as const)(
+    'says so after a %s, and keeps the last known time, dimmed',
+    async (failure) => {
+      render(<LiveClock />)
+      await passes(0)
+
+      down = failure
+      await passes(1000)
+
+      expect(screen.getByRole('alert')).toHaveTextContent(BANNER)
+      expect(liveClock().getByText('16:50:06')).toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Live' })).toHaveClass('live--stale')
+    },
+  )
+
+  it('keeps retrying every second, and recovers on its own', async () => {
+    render(<LiveClock />)
+    await passes(0)
+    down = 'network'
+    await passes(1000)
+
+    down = undefined
+    await passes(1000)
+
+    expect(asked).toEqual(['16:50:06', '16:50:07', '16:50:08'])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(liveClock().getByText('16:50:08')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Live' })).not.toHaveClass('live--stale')
+  })
+
+  it('is not taken for down by a failure older than the answer shown', async () => {
+    holdTheAnswerFor('16:50:07')
+    render(<LiveClock />)
+    await passes(0)
+    await passes(1000)
+    await passes(1000)
+
+    down = 'network'
+    await release('16:50:07')
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(liveClock().getByText('16:50:08')).toBeInTheDocument()
   })
 })

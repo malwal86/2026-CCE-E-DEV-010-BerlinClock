@@ -21,35 +21,47 @@ export class ApiProblem extends Error {
   }
 }
 
+/**
+ * Sends a request to the API. A refusal comes back as its problem detail; a backend that cannot be reached, or an
+ * error that is not a problem detail (such as the proxy's 502 page), becomes a problem saying `unavailable`.
+ */
+async function send(path: string, unavailable: string, init?: RequestInit): Promise<Response> {
+  const backendUnavailable = (status: number) => new ApiProblem({ title: 'Backend unavailable', status, detail: unavailable })
+  let response: Response
+  try {
+    response = await fetch(url(path), init)
+  } catch {
+    throw backendUnavailable(503)
+  }
+  if (response.ok) return response
+  if (response.headers.get('Content-Type')?.startsWith('application/problem+json')) {
+    throw new ApiProblem(await response.json())
+  }
+  throw backendUnavailable(response.status)
+}
+
+const UNAVAILABLE = 'Backend unavailable. Please try again.'
+
 export async function convertTime(time: string): Promise<Conversion> {
-  const response = await fetch(url('/api/conversions'), {
+  const response = await send('/api/conversions', 'Backend unavailable. Your conversion was not saved.', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ time }),
   })
-  if (!response.ok) {
-    throw new ApiProblem(await response.json())
-  }
   return response.json()
 }
 
 export async function fetchConversion(id: number): Promise<Conversion> {
-  const response = await fetch(url(`/api/conversions/${id}`))
-  if (!response.ok) {
-    throw new ApiProblem(await response.json())
-  }
+  const response = await send(`/api/conversions/${id}`, UNAVAILABLE)
   return response.json()
 }
 
 /** Deletes every conversion. */
 export async function clearHistory(): Promise<void> {
-  const response = await fetch(url('/api/conversions'), { method: 'DELETE' })
-  if (!response.ok) {
-    throw new ApiProblem(await response.json())
-  }
+  await send('/api/conversions', UNAVAILABLE, { method: 'DELETE' })
 }
 
 export async function fetchRecentConversions(): Promise<Conversion[]> {
-  const response = await fetch(url('/api/conversions'))
+  const response = await send('/api/conversions', UNAVAILABLE)
   return response.json()
 }

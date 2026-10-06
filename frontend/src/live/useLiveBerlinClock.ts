@@ -7,12 +7,20 @@ const pad = (n: number) => String(n).padStart(2, '0')
 /** The browser's local time as HH:mm:ss: the server's time zone never matters. */
 const localTime = (now: Date) => `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
+export interface LiveBerlinClock {
+  /** The latest time the backend read, if any yet. */
+  reading?: BerlinClockReading
+  /** The last request failed: `reading` is out of date until a later one succeeds. */
+  unavailable: boolean
+}
+
 /**
- * The browser's current time as a Berlin Clock, asked of the backend on every second. An answer that arrives
- * after a newer one is ignored, so the clock never moves backwards.
+ * The browser's current time as a Berlin Clock, asked of the backend on every second. An answer (or a failure) that
+ * arrives after a newer one is ignored, so the clock never moves backwards. While the backend fails, it keeps asking.
  */
-export function useLiveBerlinClock(): BerlinClockReading | undefined {
+export function useLiveBerlinClock(): LiveBerlinClock {
   const [reading, setReading] = useState<BerlinClockReading>()
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
@@ -25,13 +33,18 @@ export function useLiveBerlinClock(): BerlinClockReading | undefined {
       // Wait for the next whole second, so the clock changes when the second does.
       timer = setTimeout(tick, 1000 - now.getMilliseconds())
       const request = ++asked
+      const isLatest = () => !stopped && request >= shown
       try {
         const answer = await fetchBerlinClock(localTime(now))
-        if (stopped || request < shown) return
+        if (!isLatest()) return
         shown = request
         setReading(answer)
+        setUnavailable(false)
       } catch {
+        if (!isLatest()) return
         // Keep the last state shown; the next tick tries again.
+        shown = request
+        setUnavailable(true)
       }
     }
 
@@ -42,5 +55,5 @@ export function useLiveBerlinClock(): BerlinClockReading | undefined {
     }
   }, [])
 
-  return reading
+  return { reading, unavailable }
 }

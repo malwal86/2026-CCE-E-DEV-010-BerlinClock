@@ -18,6 +18,7 @@ const BERLIN_CLOCK: Record<string, Omit<BerlinClockRows, 'clock'>> = {
   '12:34:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYROOOOO', singleMinutes: 'YYYY' },
   '12:32:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYROOOOO', singleMinutes: 'YYOO' },
   '16:50:06': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYYRYO', singleMinutes: 'OOOO' },
+  '12:00:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'OOOOOOOOOOO', singleMinutes: 'OOOO' },
   '11:37:01': { seconds: 'O', fiveHours: 'RROO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYOOOO', singleMinutes: 'YYOO' },
 }
 
@@ -41,6 +42,23 @@ let clears = 0
 /** How many times the live clock asked the fake API for the time. */
 let ticks = 0
 
+/** What is down behind the fake API: nothing, only the database, or the whole backend. */
+let outage: 'database' | 'backend' | undefined
+
+/** The fake API's answer while something is down, if anything is. */
+function outageAnswer(request: Request) {
+  if (outage === 'backend') return HttpResponse.error()
+  if (outage === 'database' && new URL(request.url).pathname.startsWith('/api/conversions')) {
+    const detail = request.method === 'POST'
+      ? 'History is temporarily unavailable. Your conversion was not saved.'
+      : 'History is temporarily unavailable.'
+    return HttpResponse.json(
+      { title: 'History unavailable', status: 503, detail, instance: new URL(request.url).pathname },
+      { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+    )
+  }
+}
+
 /** A fake API backed by an in-memory history, newest first. */
 function givenTheApiHasHistory(...initial: Conversion[]) {
   const history = [...initial]
@@ -48,7 +66,9 @@ function givenTheApiHasHistory(...initial: Conversion[]) {
   conversions = 0
   clears = 0
   ticks = 0
+  outage = undefined
   server.use(
+    http.all('*', ({ request }) => outageAnswer(request)),
     // The live clock: any time reads as 16:50:06's lamps, the page only needs an answer.
     http.get('/api/berlin-clock', ({ request }) => {
       ticks++
@@ -87,6 +107,18 @@ function givenTheApiHasHistory(...initial: Conversion[]) {
       return HttpResponse.json(created, { status: 201 })
     }),
   )
+}
+
+function givenTheDatabaseIsDown() {
+  outage = 'database'
+}
+
+function givenTheBackendIsDown() {
+  outage = 'backend'
+}
+
+function givenEverythingIsBackUp() {
+  outage = undefined
 }
 
 function givenTheApiRejects(time: string, detail: string) {
@@ -571,5 +603,123 @@ describe('The live clock', () => {
     expect(conversions).toBe(0)
     expect(within(screen.getByRole('region', { name: 'Live' })).getByText('16:51:06')).toBeInTheDocument()
     expect(recentConversions().getAllByRole('listitem')).toHaveLength(1)
+  })
+})
+
+describe('When the database is down', () => {
+  const NOT_SAVED = 'History is temporarily unavailable. Your conversion was not saved.'
+
+  it('says a conversion was not saved, without blaming the time typed', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await recentConversions().findByText('00:00:00')
+    givenTheDatabaseIsDown()
+
+    const input = screen.getByLabelText('Time (HH:mm:ss)')
+    await userEvent.type(input, '12:00:00{Enter}')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(NOT_SAVED)
+    expect(input).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+  })
+
+  it('shows "History unavailable" instead of the recent conversions', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await recentConversions().findByText('00:00:00')
+    givenTheDatabaseIsDown()
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '12:00:00{Enter}')
+
+    await recentConversions().findByText('History unavailable')
+    expect(recentConversions().queryByRole('listitem')).not.toBeInTheDocument()
+    expect(recentConversions().queryByText('No conversions yet')).not.toBeInTheDocument()
+    expect(recentConversions().getByRole('button', { name: 'Clear history' })).toBeDisabled()
+  })
+
+  it('shows "History unavailable" when the page opens', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    givenTheDatabaseIsDown()
+    render(<App />)
+
+    expect(await recentConversions().findByText('History unavailable')).toBeInTheDocument()
+  })
+
+  it('shows "History unavailable" when clearing fails, rather than an empty history', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await recentConversions().findByText('00:00:00')
+    givenTheDatabaseIsDown()
+
+    await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
+    await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
+
+    expect(await recentConversions().findByText('History unavailable')).toBeInTheDocument()
+    expect(recentConversions().queryByText('No conversions yet')).not.toBeInTheDocument()
+  })
+
+  it('keeps the live clock ticking, without a banner', async () => {
+    givenTheApiHasHistory()
+    givenTheDatabaseIsDown()
+    render(<App />)
+
+    const live = within(screen.getByRole('region', { name: 'Live' }))
+    expect(await live.findByRole('img', { name: /^Berlin Clock showing/ })).toBeInTheDocument()
+    expect(screen.queryByText('Backend unavailable. Retrying…')).not.toBeInTheDocument()
+  })
+
+  it('saves conversions again once it is back, and the history returns', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    givenTheDatabaseIsDown()
+    render(<App />)
+    const input = screen.getByLabelText('Time (HH:mm:ss)')
+    await userEvent.type(input, '12:00:00{Enter}')
+    await screen.findByRole('alert')
+
+    givenEverythingIsBackUp()
+    await userEvent.click(screen.getByRole('button', { name: 'Convert' }))
+
+    await screen.findByRole('region', { name: 'Result' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await recentConversions().findByText('12:00:00')
+    expect(recentConversions().queryByText('History unavailable')).not.toBeInTheDocument()
+    expect(recentConversions().getAllByRole('listitem')).toHaveLength(2)
+  })
+})
+
+describe('When the backend is down', () => {
+  const BANNER = 'Backend unavailable. Retrying…'
+
+  it('shows a banner', async () => {
+    givenTheApiHasHistory()
+    givenTheBackendIsDown()
+    render(<App />)
+
+    expect(await screen.findByText(BANNER)).toBeInTheDocument()
+  })
+
+  it('says a conversion could not be made', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+    await recentConversions().findByText('No conversions yet')
+    givenTheBackendIsDown()
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '12:00:00{Enter}')
+
+    expect(await screen.findByText('Backend unavailable. Your conversion was not saved.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+  })
+
+  it('removes the banner once the backend answers again', async () => {
+    givenTheApiHasHistory()
+    givenTheBackendIsDown()
+    render(<App />)
+    await screen.findByText(BANNER)
+
+    givenEverythingIsBackUp()
+
+    await waitForElementToBeRemoved(() => screen.queryByText(BANNER), { timeout: 3000 })
   })
 })

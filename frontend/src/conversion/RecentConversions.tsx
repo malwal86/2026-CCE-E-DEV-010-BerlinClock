@@ -13,11 +13,13 @@ interface Props {
   openId?: number
   /** Called once clearing is confirmed. */
   onClear: () => Promise<void>
+  /** The history could not be read: `conversions` says nothing about what it holds. */
+  unavailable?: boolean
 }
 
 const QUESTION = 'Delete all conversions? This cannot be undone.'
 
-export function RecentConversions({ conversions, onOpen, openId, onClear }: Props) {
+export function RecentConversions({ conversions, onOpen, openId, onClear, unavailable = false }: Props) {
   const [confirming, setConfirming] = useState(false)
   const clearButton = useRef<HTMLButtonElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
@@ -52,7 +54,7 @@ export function RecentConversions({ conversions, onOpen, openId, onClear }: Prop
           ref={clearButton}
           type="button"
           className="recent-header__clear"
-          disabled={conversions.length === 0}
+          disabled={unavailable || conversions.length === 0}
           onClick={() => setConfirming(true)}
         >
           Clear history
@@ -71,7 +73,9 @@ export function RecentConversions({ conversions, onOpen, openId, onClear }: Prop
           </div>
         </div>
       )}
-      {conversions.length === 0 ? (
+      {unavailable ? (
+        <p className="muted">History unavailable</p>
+      ) : conversions.length === 0 ? (
         <p className="muted">No conversions yet</p>
       ) : (
         <ol className="recent-list">

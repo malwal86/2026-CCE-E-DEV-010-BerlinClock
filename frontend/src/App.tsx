@@ -16,12 +16,25 @@ function navigate(path: string) {
   }
 }
 
+/** The recent conversions, or undefined when the history cannot be read (the database or the backend is down). */
+async function readRecentConversions(): Promise<Conversion[] | undefined> {
+  try {
+    return await fetchRecentConversions()
+  } catch (problem) {
+    if (!(problem instanceof ApiProblem)) throw problem
+    return undefined
+  }
+}
+
 function App() {
   const [result, setResult] = useState<Conversion>()
   /** Why the conversion in the address bar cannot be shown. */
   const [lookupError, setLookupError] = useState<string>()
-  const [recent, setRecent] = useState<Conversion[]>([])
+  const [recent, setRecent] = useState<Conversion[] | undefined>([])
+  /** Why the time typed was rejected. */
   const [error, setError] = useState<string>()
+  /** Why a conversion failed although the time was fine. */
+  const [failure, setFailure] = useState<string>()
 
   const show = useCallback(async (id: number | undefined) => {
     if (id === undefined) {
@@ -40,7 +53,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    fetchRecentConversions().then(setRecent)
+    readRecentConversions().then(setRecent)
   }, [])
 
   useEffect(() => {
@@ -56,20 +69,32 @@ function App() {
       setResult(conversion)
       setLookupError(undefined)
       setError(undefined)
+      setFailure(undefined)
       navigate(conversionPath(conversion.id))
     } catch (problem) {
       if (!(problem instanceof ApiProblem)) throw problem
       setResult(undefined)
       setLookupError(undefined)
-      setError(problem.message)
       navigate('/')
-      return
+      if (problem.status === 400) {
+        setError(problem.message)
+        setFailure(undefined)
+        return
+      }
+      setError(undefined)
+      setFailure(problem.message)
     }
-    setRecent(await fetchRecentConversions())
+    setRecent(await readRecentConversions())
   }
 
   async function clear() {
-    await clearHistory()
+    try {
+      await clearHistory()
+    } catch (problem) {
+      if (!(problem instanceof ApiProblem)) throw problem
+      setRecent(await readRecentConversions())
+      return
+    }
     setRecent([])
     // The conversion shown is gone too, and the reader knows it: close it rather than say "not found".
     // Replacing the address adds no Back step; an old link to it still says "not found".
@@ -87,7 +112,7 @@ function App() {
       <h1>Berlin Clock</h1>
       <LiveClock />
       <section className="panel" aria-label="Convert a time">
-        <ConvertForm onConvert={convert} error={error} />
+        <ConvertForm onConvert={convert} error={error} failure={failure} />
       </section>
       {(result || lookupError) && (
         <section className="panel result" aria-labelledby="result-heading">
@@ -105,7 +130,13 @@ function App() {
           )}
         </section>
       )}
-      <RecentConversions conversions={recent} onOpen={open} openId={result?.id} onClear={clear} />
+      <RecentConversions
+        conversions={recent ?? []}
+        unavailable={recent === undefined}
+        onOpen={open}
+        openId={result?.id}
+        onClear={clear}
+      />
     </main>
   )
 }
