@@ -13,6 +13,7 @@ export function BerlinClock({ clock, size = 'large' }: Props) {
       <span className="berlin-clock__seconds" data-testid="seconds-lamp" data-lamp={clock.seconds} />
       <LampRow lamps={clock.fiveHours} testId="five-hours-row" />
       <LampRow lamps={clock.singleHours} testId="single-hours-row" />
+      <LampRow lamps={clock.fiveMinutes} testId="five-minutes-row" />
     </div>
   )
 }
