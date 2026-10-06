@@ -39,7 +39,7 @@ class ConversionControllerTest {
 
 	@BeforeEach
 	void startWithAnEmptyHistory() {
-		history.clear();
+		history.deleteAll();
 	}
 
 	@Test

@@ -62,6 +62,7 @@ class JdbcConversionHistory implements ConversionHistory {
 				.optional();
 	}
 
+	@Override
 	public void deleteAll() {
 		jdbc.sql("DELETE FROM conversion").update();
 	}

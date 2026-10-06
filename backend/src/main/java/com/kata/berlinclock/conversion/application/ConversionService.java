@@ -38,4 +38,9 @@ public class ConversionService {
 	public Optional<Conversion> find(long id) {
 		return history.findById(id);
 	}
+
+	/** Deletes every conversion; there is nothing to undo. */
+	public void clear() {
+		history.deleteAll();
+	}
 }

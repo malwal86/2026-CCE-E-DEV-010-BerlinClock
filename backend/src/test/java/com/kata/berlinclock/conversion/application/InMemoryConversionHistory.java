@@ -30,7 +30,8 @@ public class InMemoryConversionHistory implements ConversionHistory {
 		return conversions.stream().filter(conversion -> conversion.id() == id).findFirst();
 	}
 
-	public void clear() {
+	@Override
+	public void deleteAll() {
 		conversions.clear();
 	}
 }
