@@ -71,8 +71,10 @@ function App() {
   async function clear() {
     await clearHistory()
     setRecent([])
-    // The conversion in the address bar is gone too: say so rather than show a deleted one.
-    if (result) await show(result.id)
+    // The conversion shown is gone too, and the reader knows it: close it rather than say "not found".
+    // Replacing the address adds no Back step; an old link to it still says "not found".
+    if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
+    show(undefined)
   }
 
   function open(id: number) {

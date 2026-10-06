@@ -442,19 +442,40 @@ describe('Clearing the history', () => {
     expect(recentConversions().getByRole('button', { name: 'Clear history' })).toBeDisabled()
   })
 
-  it('tells that an opened conversion no longer exists', async () => {
+  it('closes an opened conversion and returns to the home page, without a new Back step', async () => {
     const user = userEvent.setup()
     givenTheApiHasHistory(conversion(1, '00:00:00'))
     givenTheAddressIs('/conversions/1')
     render(<App />)
     await within(await screen.findByRole('region', { name: 'Result' })).findByText('YOOOOOOOOOOOOOOOOOOOOOOO')
+    const steps = window.history.length
 
     await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
     await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
 
-    const result = within(screen.getByRole('region', { name: 'Result' }))
+    await recentConversions().findByText('No conversions yet')
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(window.history.length).toBe(steps)
+  })
+
+  it('still says not found when a cleared conversion is opened from its old link', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await recentConversions().findByText('00:00:00')
+    await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
+    await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
+    await recentConversions().findByText('No conversions yet')
+
+    act(() => {
+      window.history.pushState(null, '', '/conversions/1')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
     expect(await result.findByRole('alert')).toHaveTextContent('Conversion 1 not found')
-    expect(window.location.pathname).toBe('/conversions/1')
   })
 })
 

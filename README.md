@@ -183,7 +183,8 @@ curl -s localhost:3000/api/conversions/999999
 1. Under **Recent conversions**, click **Clear history**. The page asks *"Delete all conversions? This cannot be
    undone."* with **Delete** and **Cancel** (no browser pop-up). Click **Cancel**: nothing changes.
 2. Click **Clear history** again, then **Delete**: the list says *"No conversions yet"* and the button is disabled.
-   If the result panel showed a conversion, it now says *"Conversion <id> not found"*.
+   If the result panel showed a conversion, it closes and the address returns to `/`. An old link to it
+   (or Back to it) says *"Conversion <id> not found"*.
 3. `docker compose restart`, then refresh the page: the history is still empty.
 4. Optional, count the rows: `docker compose exec db psql -U berlin -d berlin_clock -c "select count(*) from conversion"` → 0.
 
