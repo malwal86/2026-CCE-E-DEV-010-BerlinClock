@@ -20,7 +20,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A6 · Single-minutes row | ✅ Done |
 | A7 · The entire Berlin Clock as one 24-character code | ✅ Done |
 | B1 · Revisit a past conversion | ✅ Done |
-| B2 – D2 | Planned (see the PDF) |
+| B2 · Clear the history | ✅ Done |
+| C1 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -42,7 +43,8 @@ Then open **http://localhost:3000**.
 | API (Spring Boot) | http://localhost:8080/api/conversions | |
 | PostgreSQL 17 | `localhost:5433`, db `berlin_clock`, user/password `berlin` | Host port 5433 avoids clashing with a local PostgreSQL |
 
-Stop with `Ctrl+C`, or `docker compose down`. The history survives restarts. To wipe it, run `docker compose down -v`.
+Stop with `Ctrl+C`, or `docker compose down`. The history survives restarts. To wipe it, use **Clear history** in the page (story B2) or
+`docker compose down -v`.
 
 ## Try it yourself (story A1)
 
@@ -174,6 +176,24 @@ curl -s localhost:3000/api/conversions/999999
 # {"detail":"Conversion 999999 not found","instance":"/api/conversions/999999","status":404,"title":"Conversion not found"}
 ```
 
+## Try it yourself (story B2)
+
+1. Under **Recent conversions**, click **Clear history**. The page asks *"Delete all conversions? This cannot be
+   undone."* with **Delete** and **Cancel** (no browser pop-up). Click **Cancel**: nothing changes.
+2. Click **Clear history** again, then **Delete**: the list says *"No conversions yet"* and the button is disabled.
+   If the result panel showed a conversion, it now says *"Conversion <id> not found"*.
+3. `docker compose restart`, then refresh the page: the history is still empty.
+4. Optional, count the rows: `docker compose exec db psql -U berlin -d berlin_clock -c "select count(*) from conversion"` → 0.
+
+Through the API (clearing an empty history is fine too):
+
+```bash
+curl -s -X DELETE localhost:3000/api/conversions -o /dev/null -w '%{http_code}\n'
+# 204
+curl -s localhost:3000/api/conversions
+# []
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -234,6 +254,9 @@ docker-compose.yml           db + backend + frontend
   on read, so there is one source of truth and no stale data.
 - **POST saves, GET reads.** `POST /api/conversions` returns `201 Created` with a `Location` header, and
   `GET /api/conversions/{id}` reads that conversion again (`404` problem detail when there is none).
+  `DELETE /api/conversions` clears the history with `204 No Content`, and is idempotent.
+- **Destructive actions are confirmed inside the page**, not with the browser's `confirm()`: the question stays
+  styled, testable and accessible, and focus starts on **Cancel**.
 - **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
   shared, reloaded or reached with Back. A small path helper replaces a router library; nginx (and Vite in dev)
   serve `index.html` for any page.
