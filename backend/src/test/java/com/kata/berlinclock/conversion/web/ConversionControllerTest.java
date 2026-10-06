@@ -55,7 +55,8 @@ class ConversionControllerTest {
 						  "id": 1,
 						  "time": "00:00:00",
 						  "convertedAt": "2026-10-05T14:03:12Z",
-						  "seconds": "Y"
+						  "seconds": "Y",
+						  "fiveHours": "OOOO"
 						}""");
 	}
 
@@ -68,8 +69,8 @@ class ConversionControllerTest {
 				.hasStatusOk()
 				.bodyJson().isStrictlyEqualTo("""
 						[
-						  { "id": 2, "time": "23:59:59", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "O" },
-						  { "id": 1, "time": "00:00:00", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "Y" }
+						  { "id": 2, "time": "23:59:59", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "O", "fiveHours": "RRRR" },
+						  { "id": 1, "time": "00:00:00", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "Y", "fiveHours": "OOOO" }
 						]""");
 	}
 
