@@ -125,6 +125,32 @@ class ConversionControllerTest {
 	}
 
 	@Test
+	void clearingTheHistoryAnswersNoContent() {
+		service.convert("00:00:00");
+		service.convert("23:59:59");
+
+		assertThat(mvc.delete().uri("/api/conversions"))
+				.hasStatus(HttpStatus.NO_CONTENT)
+				.body().isEmpty();
+		assertThat(history.latest(10)).isEmpty();
+	}
+
+	@Test
+	void clearingAnEmptyHistoryAnswersNoContentToo() {
+		assertThat(mvc.delete().uri("/api/conversions"))
+				.hasStatus(HttpStatus.NO_CONTENT);
+	}
+
+	@Test
+	void aClearedConversionIsNoLongerFound() {
+		service.convert("23:59:59");
+		mvc.delete().uri("/api/conversions").exchange();
+
+		assertThat(mvc.get().uri("/api/conversions/1"))
+				.hasStatus(HttpStatus.NOT_FOUND);
+	}
+
+	@Test
 	void anInvalidTimeIsABadRequestWithAProblemDetail() {
 		assertThat(mvc.post().uri("/api/conversions")
 				.contentType(APPLICATION_JSON)
