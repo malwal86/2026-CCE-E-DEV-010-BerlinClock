@@ -1,6 +1,7 @@
 package com.kata.berlinclock.conversion.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -9,6 +10,7 @@ import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
+import com.kata.berlinclock.clock.InvalidTimeException;
 import com.kata.berlinclock.clock.Lamp;
 
 public class ConversionServiceTest {
@@ -20,7 +22,7 @@ public class ConversionServiceTest {
 
 	@Test
 	void savesTheConvertedTimeWithTheMomentOfConversion() {
-		var conversion = service.convert(LocalTime.parse("16:50:06"));
+		var conversion = service.convert("16:50:06");
 
 		assertThat(conversion.time()).isEqualTo(LocalTime.parse("16:50:06"));
 		assertThat(conversion.convertedAt()).isEqualTo(NOW);
@@ -30,7 +32,7 @@ public class ConversionServiceTest {
 	@Test
 	void listsTheTenMostRecentConversionsNewestFirst() {
 		for (int second = 0; second <= 10; second++) {
-			service.convert(LocalTime.of(0, 0, second));
+			service.convert("00:00:%02d".formatted(second));
 		}
 
 		assertThat(service.recent())
@@ -42,8 +44,22 @@ public class ConversionServiceTest {
 
 	@Test
 	void aConversionShowsItsTimeOnTheBerlinClock() {
-		var conversion = service.convert(LocalTime.parse("23:59:59"));
+		var conversion = service.convert("23:59:59");
 
 		assertThat(conversion.berlinClock().seconds()).isEqualTo(Lamp.OFF);
+	}
+
+	@Test
+	void anInvalidTimeIsNeverSaved() {
+		assertThatThrownBy(() -> service.convert("25:00:00")).isInstanceOf(InvalidTimeException.class);
+
+		assertThat(history.latest(10)).isEmpty();
+	}
+
+	@Test
+	void aMissingTimeIsNeverSaved() {
+		assertThatThrownBy(() -> service.convert(null)).isInstanceOf(InvalidTimeException.class);
+
+		assertThat(history.latest(10)).isEmpty();
 	}
 }

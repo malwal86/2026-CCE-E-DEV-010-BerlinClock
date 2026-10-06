@@ -1,14 +1,18 @@
 package com.kata.berlinclock.conversion;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -78,6 +82,45 @@ class ConversionApiAcceptanceTest {
 				.jsonPath("$.length()").isEqualTo(10)
 				.jsonPath("$[0].time").isEqualTo("00:00:10")
 				.jsonPath("$[9].time").isEqualTo("00:00:01");
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@ValueSource(strings = { "25:00:00", "24:00:00", "12:60:00", "12:00:60", "1:2:3", "12-00-00", "12:00", "noon" })
+	void anInvalidTimeIsRejectedAndNotSaved(String time) {
+		client.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.body("{\"time\": \"%s\"}".formatted(time))
+				.exchange()
+				.expectStatus().isBadRequest()
+				.expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+				.expectBody()
+				.jsonPath("$.title").isEqualTo("Invalid time")
+				.jsonPath("$.status").isEqualTo(400)
+				.jsonPath("$.detail").isEqualTo(
+						"Invalid time '%s': expected HH:mm:ss between 00:00:00 and 23:59:59".formatted(time))
+				.jsonPath("$.instance").isEqualTo("/api/conversions");
+
+		assertThat(savedConversions()).isZero();
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@ValueSource(strings = { "{\"time\": \"\"}", "{}" })
+	void aMissingTimeIsRejectedAndNotSaved(String body) {
+		client.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.body(body)
+				.exchange()
+				.expectStatus().isBadRequest()
+				.expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+				.expectBody()
+				.jsonPath("$.title").isEqualTo("Invalid time")
+				.jsonPath("$.detail").isEqualTo("A time is required (HH:mm:ss)");
+
+		assertThat(savedConversions()).isZero();
+	}
+
+	private long savedConversions() {
+		return jdbc.sql("SELECT count(*) FROM conversion").query(Long.class).single();
 	}
 
 	private void convert(String time) {

@@ -13,7 +13,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | Story | Status |
 |---|---|
 | A1 · Walking skeleton: convert a time, see the seconds lamp, find it in history | ✅ Done |
-| A2 – D2 | Planned (see the PDF) |
+| A2 · Clear feedback for invalid times | ✅ Done |
+| A3 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -55,6 +56,22 @@ curl localhost:3000/api/conversions
 # [{"id":1,"time":"00:00:00","convertedAt":"…","seconds":"Y"}]
 ```
 
+## Try it yourself (story A2)
+
+1. Type `12-00-00` and press **Convert**. The message *Invalid time '12-00-00': expected HH:mm:ss between
+   00:00:00 and 23:59:59* appears under the field, and **Recent conversions** does not change.
+2. Convert `00:00:00`, then `25:00:00`. The message appears and the previous result is cleared.
+3. Clear the field and press **Convert**. The message is *A time is required (HH:mm:ss)*.
+
+Also rejected: `24:00:00`, `12:60:00`, `12:00:60`, `1:2:3`, `12:00`, `noon`. Through the API:
+
+```bash
+curl -i -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"25:00:00"}'
+# HTTP/1.1 400   Content-Type: application/problem+json
+# {"detail":"Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59",
+#  "instance":"/api/conversions","status":400,"title":"Invalid time"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -76,7 +93,7 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |
@@ -91,11 +108,13 @@ on the `clock` package) and `npm run coverage` for the frontend.
 ```
 backend/                     Spring Boot 4.1 · Java 21
   src/main/java/com/kata/berlinclock/
-    clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp), pure Java, no framework
+    clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp) and the strict HH:mm:ss
+                             input contract (DigitalTime), pure Java, no framework
     conversion/              Feature: conversion history, layered inside
       web/                   ConversionController + request/response DTOs
       application/           ConversionService use case, Conversion, ConversionHistory port
       persistence/           JdbcClient implementation of the port
+    error/                   ApiExceptionHandler: errors shared by every feature, as problem+json
     BerlinClockApplicationConfiguration   System Clock bean (JDK type, so declared with @Bean)
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
@@ -112,7 +131,12 @@ docker-compose.yml           db + backend + frontend
 - **The database stores facts only** (the input time and when it was converted). The Berlin Clock is computed
   on read, so there is one source of truth and no stale data.
 - **POST saves, GET reads.** `POST /api/conversions` returns `201 Created` with a `Location` header.
-- **TDD with visible red → green commits** (`test(red): …`, `feat(green): …`, `refactor: …`).
+- **Strict input, checked in one place.** `DigitalTime` accepts only zero-padded `HH:mm:ss` from 00:00:00 to
+  23:59:59 (`24:00:00` is rejected). The API takes the time as text so JSON binding cannot loosen the rule,
+  and an invalid time never reaches the database.
+- **Errors are RFC 9457 problem details** (`application/problem+json`, with `title`, `status`, `detail`, `instance`).
+  The UI shows `detail` as written.
+- **TDD, committed per layer.** Each commit is green and lists its red → green cycles in the message.
 
 See Appendix C of the user stories PDF for the full list.
 

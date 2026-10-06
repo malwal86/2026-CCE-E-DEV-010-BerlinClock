@@ -1,11 +1,13 @@
 package com.kata.berlinclock.conversion.application;
 
 import java.time.Clock;
-import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.kata.berlinclock.clock.DigitalTime;
+import com.kata.berlinclock.clock.InvalidTimeException;
 
 @Service
 public class ConversionService {
@@ -21,8 +23,11 @@ public class ConversionService {
 		this.clock = clock;
 	}
 
-	public Conversion convert(LocalTime time) {
-		return history.save(time, clock.instant());
+	/**
+	 * @throws InvalidTimeException if {@code time} is missing or not a strict HH:mm:ss time; nothing is saved
+	 */
+	public Conversion convert(String time) {
+		return history.save(DigitalTime.parse(time), clock.instant());
 	}
 
 	public List<Conversion> recent() {

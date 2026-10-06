@@ -2,10 +2,10 @@ package com.kata.berlinclock.conversion.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +61,8 @@ class ConversionControllerTest {
 
 	@Test
 	void listsRecentConversionsNewestFirst() {
-		service.convert(LocalTime.parse("00:00:00"));
-		service.convert(LocalTime.parse("23:59:59"));
+		service.convert("00:00:00");
+		service.convert("23:59:59");
 
 		assertThat(mvc.get().uri("/api/conversions"))
 				.hasStatusOk()
@@ -71,6 +71,45 @@ class ConversionControllerTest {
 						  { "id": 2, "time": "23:59:59", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "O" },
 						  { "id": 1, "time": "00:00:00", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "Y" }
 						]""");
+	}
+
+	@Test
+	void anInvalidTimeIsABadRequestWithAProblemDetail() {
+		assertThat(mvc.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.content("""
+						{"time": "25:00:00"}"""))
+				.hasStatus(HttpStatus.BAD_REQUEST)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "title": "Invalid time",
+						  "status": 400,
+						  "detail": "Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59",
+						  "instance": "/api/conversions"
+						}""");
+		assertThat(history.latest(10)).isEmpty();
+	}
+
+	@Test
+	void aMissingTimeIsABadRequestWithAProblemDetail() {
+		assertThat(mvc.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.content("{}"))
+				.hasStatus(HttpStatus.BAD_REQUEST)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson()
+				.hasPathSatisfying("$.title", title -> assertThat(title).isEqualTo("Invalid time"))
+				.hasPathSatisfying("$.detail", detail -> assertThat(detail).isEqualTo("A time is required (HH:mm:ss)"));
+	}
+
+	@Test
+	void aBodyThatIsNotJsonIsABadRequestWithAProblemDetail() {
+		assertThat(mvc.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.content("not json"))
+				.hasStatus(HttpStatus.BAD_REQUEST)
+				.hasContentType(APPLICATION_PROBLEM_JSON);
 	}
 
 	@TestConfiguration
