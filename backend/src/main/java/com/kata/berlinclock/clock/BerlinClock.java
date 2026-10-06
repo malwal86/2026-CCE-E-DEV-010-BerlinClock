@@ -22,4 +22,9 @@ public final class BerlinClock {
 	public LampRow fiveHours() {
 		return LampRow.light(time.getHour() / 5, 4, Lamp.RED);
 	}
+
+	/** Four red lamps, one lit per hour left over after the five-hour blocks. */
+	public LampRow singleHours() {
+		return LampRow.light(time.getHour() % 5, 4, Lamp.RED);
+	}
 }
