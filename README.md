@@ -17,7 +17,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A3 · Five-hours row | ✅ Done |
 | A4 · Single-hours row | ✅ Done |
 | A5 · Five-minutes row | ✅ Done |
-| A6 – D2 | Planned (see the PDF) |
+| A6 · Single-minutes row | ✅ Done |
+| A7 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -117,6 +118,20 @@ curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 # {"id":5,"time":"12:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RROO","fiveMinutes":"YYRYYRYOOOO"}
 ```
 
+## Try it yourself (story A6)
+
+1. Type `12:34:00` and press **Convert**. The bottom row lights **Y Y Y Y**, and the clock is complete: it reads
+   12:34 as 2 × 5 h + 2 h, then 6 × 5 min + 4 min.
+2. Type `12:35:00` and press **Convert**. The bottom row goes dark (`OOOO`), because the extra minute moves into row 4.
+3. Every older entry in **Recent conversions** now shows a complete clock, computed on read.
+
+Other kata examples: `00:00:00` → `OOOO`, `23:59:59` → `YYYY`, `12:32:00` → `YYOO`. Through the API:
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"12:34:00"}'
+# {"id":6,"time":"12:34:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RROO","fiveMinutes":"YYRYYROOOOO","singleMinutes":"YYYY"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -138,7 +153,7 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `DigitalTimeTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `SingleMinutesRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |

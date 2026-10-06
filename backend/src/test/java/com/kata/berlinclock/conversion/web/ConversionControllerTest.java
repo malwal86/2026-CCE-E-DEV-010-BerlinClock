@@ -58,7 +58,8 @@ class ConversionControllerTest {
 						  "seconds": "Y",
 						  "fiveHours": "OOOO",
 						  "singleHours": "OOOO",
-						  "fiveMinutes": "OOOOOOOOOOO"
+						  "fiveMinutes": "OOOOOOOOOOO",
+						  "singleMinutes": "OOOO"
 						}""");
 	}
 
@@ -72,9 +73,9 @@ class ConversionControllerTest {
 				.bodyJson().isStrictlyEqualTo("""
 						[
 						  { "id": 2, "time": "23:59:59", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "O", "fiveHours": "RRRR", "singleHours": "RRRO",
-						    "fiveMinutes": "YYRYYRYYRYY" },
+						    "fiveMinutes": "YYRYYRYYRYY", "singleMinutes": "YYYY" },
 						  { "id": 1, "time": "00:00:00", "convertedAt": "2026-10-05T14:03:12Z", "seconds": "Y", "fiveHours": "OOOO", "singleHours": "OOOO",
-						    "fiveMinutes": "OOOOOOOOOOO" }
+						    "fiveMinutes": "OOOOOOOOOOO", "singleMinutes": "OOOO" }
 						]""");
 	}
 
