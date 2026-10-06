@@ -71,4 +71,22 @@ class JdbcConversionHistoryTest {
 
 		assertThat(history.findById(saved.id() + 1)).isEmpty();
 	}
+
+	@Test
+	void deletesEveryConversion() {
+		var saved = history.save(LocalTime.parse("00:00:00"), TEN_O_CLOCK);
+		history.save(LocalTime.parse("23:59:59"), TEN_O_CLOCK);
+
+		history.deleteAll();
+
+		assertThat(history.latest(10)).isEmpty();
+		assertThat(history.findById(saved.id())).isEmpty();
+	}
+
+	@Test
+	void deletingAnEmptyHistoryLeavesItEmpty() {
+		history.deleteAll();
+
+		assertThat(history.latest(10)).isEmpty();
+	}
 }

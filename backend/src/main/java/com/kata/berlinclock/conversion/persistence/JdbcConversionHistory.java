@@ -62,6 +62,10 @@ class JdbcConversionHistory implements ConversionHistory {
 				.optional();
 	}
 
+	public void deleteAll() {
+		jdbc.sql("DELETE FROM conversion").update();
+	}
+
 	private static Conversion toConversion(ResultSet row, int rowNumber) throws SQLException {
 		return new Conversion(
 				row.getLong("id"),
