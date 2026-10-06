@@ -4,4 +4,6 @@ export type Lamp = 'Y' | 'R' | 'O'
 /** The rows of a Berlin Clock, exactly as the API returns them. */
 export interface BerlinClockRows {
   seconds: Lamp
+  /** Four red lamps, in the kata notation (e.g. "RRRO"). */
+  fiveHours: string
 }
