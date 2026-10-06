@@ -10,6 +10,7 @@ class LampTest {
 	@ParameterizedTest(name = "{0} is written {1}")
 	@CsvSource({
 			"YELLOW, Y",
+			"RED, R",
 			"OFF, O",
 	})
 	void isWrittenWithTheKataNotation(Lamp lamp, char symbol) {

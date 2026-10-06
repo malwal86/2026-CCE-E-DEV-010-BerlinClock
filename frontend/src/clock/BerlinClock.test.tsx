@@ -1,17 +1,28 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { BerlinClock } from './BerlinClock'
+import type { BerlinClockRows } from './types'
+
+const clock = (rows: Partial<BerlinClockRows>): BerlinClockRows => ({ seconds: 'Y', fiveHours: 'OOOO', ...rows })
+
+const lampsOf = (row: HTMLElement) => Array.from(row.children, (lamp) => lamp.getAttribute('data-lamp')).join('')
 
 describe('BerlinClock', () => {
   it('lights the seconds lamp yellow on an even second', () => {
-    render(<BerlinClock clock={{ seconds: 'Y' }} />)
+    render(<BerlinClock clock={clock({ seconds: 'Y' })} />)
 
     expect(screen.getByTestId('seconds-lamp')).toHaveAttribute('data-lamp', 'Y')
   })
 
   it('turns the seconds lamp off on an odd second', () => {
-    render(<BerlinClock clock={{ seconds: 'O' }} />)
+    render(<BerlinClock clock={clock({ seconds: 'O' })} />)
 
     expect(screen.getByTestId('seconds-lamp')).toHaveAttribute('data-lamp', 'O')
+  })
+
+  it('shows the five hours row', () => {
+    render(<BerlinClock clock={clock({ fiveHours: 'RRRO' })} />)
+
+    expect(lampsOf(screen.getByTestId('five-hours-row'))).toBe('RRRO')
   })
 })

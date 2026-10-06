@@ -3,12 +3,22 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import App from './App'
+import type { BerlinClockRows } from './clock/types'
 import type { Conversion } from './conversion/types'
 import { server } from './test/server'
 
-function conversion(id: number, time: string, seconds: Conversion['seconds']): Conversion {
-  return { id, time, seconds, convertedAt: '2026-10-05T14:03:12Z' }
+/** What the real API answers for the times these tests convert (the rules live in the backend). */
+const BERLIN_CLOCK: Record<string, BerlinClockRows> = {
+  '00:00:00': { seconds: 'Y', fiveHours: 'OOOO' },
+  '23:59:59': { seconds: 'O', fiveHours: 'RRRR' },
+  '16:35:00': { seconds: 'Y', fiveHours: 'RRRO' },
 }
+
+function conversion(id: number, time: string): Conversion {
+  return { id, time, ...BERLIN_CLOCK[time], convertedAt: '2026-10-05T14:03:12Z' }
+}
+
+const lampsOf = (row: HTMLElement) => Array.from(row.children, (lamp) => lamp.getAttribute('data-lamp')).join('')
 
 /** Times the fake API rejects, with the problem detail it answers. */
 const rejections = new Map<string, string>()
@@ -28,7 +38,7 @@ function givenTheApiHasHistory(...initial: Conversion[]) {
           { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
         )
       }
-      const created = conversion(history.length + 1, time, Number(time.slice(-2)) % 2 === 0 ? 'Y' : 'O')
+      const created = conversion(history.length + 1, time)
       history.unshift(created)
       return HttpResponse.json(created, { status: 201 })
     }),
@@ -56,6 +66,16 @@ describe('Converting a time', () => {
     expect(result.getByTestId('seconds-lamp')).toHaveAttribute('data-lamp', 'Y')
   })
 
+  it('shows the five hours row for the converted time', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '16:35:00{Enter}')
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(lampsOf(result.getByTestId('five-hours-row'))).toBe('RRRO')
+  })
+
   it('submits with the Enter key', async () => {
     givenTheApiHasHistory()
     render(<App />)
@@ -67,7 +87,7 @@ describe('Converting a time', () => {
   })
 
   it('adds the conversion to the top of the recent conversions', async () => {
-    givenTheApiHasHistory(conversion(1, '00:00:00', 'Y'))
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
     render(<App />)
     await recentConversions().findByText('00:00:00')
 
@@ -81,7 +101,7 @@ describe('Converting a time', () => {
 
 describe('Recent conversions', () => {
   it('lists the saved conversions when the page opens, each with its seconds lamp', async () => {
-    givenTheApiHasHistory(conversion(2, '23:59:59', 'O'), conversion(1, '00:00:00', 'Y'))
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
     render(<App />)
 
     await recentConversions().findByText('23:59:59')
@@ -90,8 +110,16 @@ describe('Recent conversions', () => {
     expect(within(oldest).getByTestId('seconds-lamp')).toHaveAttribute('data-lamp', 'Y')
   })
 
+  it('shows the five hours row of each conversion, including earlier ones', async () => {
+    givenTheApiHasHistory(conversion(1, '23:59:59'))
+    render(<App />)
+
+    const entry = (await recentConversions().findAllByRole('listitem'))[0]
+    expect(lampsOf(within(entry).getByTestId('five-hours-row'))).toBe('RRRR')
+  })
+
   it('shows when each conversion was made', async () => {
-    givenTheApiHasHistory(conversion(1, '00:00:00', 'Y'))
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
     render(<App />)
 
     const entry = (await recentConversions().findAllByRole('listitem'))[0]
@@ -127,7 +155,7 @@ describe('Invalid times', () => {
   })
 
   it('leaves the recent conversions unchanged', async () => {
-    givenTheApiHasHistory(conversion(1, '00:00:00', 'Y'))
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
     givenTheApiRejects('12-00-00', "Invalid time '12-00-00': expected HH:mm:ss between 00:00:00 and 23:59:59")
     render(<App />)
     await recentConversions().findByText('00:00:00')

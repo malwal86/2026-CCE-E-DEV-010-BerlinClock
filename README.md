@@ -14,7 +14,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 |---|---|
 | A1 · Walking skeleton: convert a time, see the seconds lamp, find it in history | ✅ Done |
 | A2 · Clear feedback for invalid times | ✅ Done |
-| A3 – D2 | Planned (see the PDF) |
+| A3 · Five-hours row | ✅ Done |
+| A4 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -72,6 +73,20 @@ curl -i -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 #  "instance":"/api/conversions","status":400,"title":"Invalid time"}
 ```
 
+## Try it yourself (story A3)
+
+1. Type `16:35:00` and press **Convert**. Under the seconds lamp, the five-hours row shows **three red lamps and
+   one dark lamp** (16 ÷ 5 = 3 full blocks of five hours).
+2. Look at an older `23:59:59` entry in **Recent conversions**: its five-hours row now shows **four red lamps**,
+   even though it was saved before this story. The row is computed on read, so no migration was needed.
+
+Other kata examples: `00:00:00` → `OOOO`, `02:04:00` → `OOOO`, `08:23:00` → `ROOO`. Through the API:
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"16:35:00"}'
+# {"id":3,"time":"16:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RRRO"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -93,12 +108,12 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `DigitalTimeTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |
 | Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest` |
-| UI | Vitest, React Testing Library, MSW | `App.test.tsx` |
+| UI | Vitest, React Testing Library, MSW | `App.test.tsx`, `LampRow.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
 on the `clock` package) and `npm run coverage` for the frontend.
@@ -108,7 +123,7 @@ on the `clock` package) and `npm run coverage` for the frontend.
 ```
 backend/                     Spring Boot 4.1 · Java 21
   src/main/java/com/kata/berlinclock/
-    clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp) and the strict HH:mm:ss
+    clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp, LampRow) and the strict HH:mm:ss
                              input contract (DigitalTime), pure Java, no framework
     conversion/              Feature: conversion history, layered inside
       web/                   ConversionController + request/response DTOs
@@ -118,7 +133,7 @@ backend/                     Spring Boot 4.1 · Java 21
     BerlinClockApplicationConfiguration   System Clock bean (JDK type, so declared with @Bean)
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
-  src/clock/                 Feature: BerlinClock component + lamp/row types
+  src/clock/                 Feature: BerlinClock and LampRow components + lamp/row types
   src/conversion/            Feature: ConvertForm, RecentConversions, API client, Conversion type
   src/App.tsx                Page: wires the features together
 docs/                        User stories (PDF + HTML source)
@@ -136,6 +151,8 @@ docker-compose.yml           db + backend + frontend
   and an invalid time never reaches the database.
 - **Errors are RFC 9457 problem details** (`application/problem+json`, with `title`, `status`, `detail`, `instance`).
   The UI shows `detail` as written.
+- **Rows travel in the kata notation** (`"fiveHours": "RRRO"`): one character per lamp, left to right. The UI's
+  generic `LampRow` draws any row from it, so each later row only adds a field.
 - **TDD, committed per layer.** Each commit is green and lists its red → green cycles in the message.
 
 See Appendix C of the user stories PDF for the full list.

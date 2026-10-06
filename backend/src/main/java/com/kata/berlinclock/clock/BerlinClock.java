@@ -17,4 +17,9 @@ public final class BerlinClock {
 	public Lamp seconds() {
 		return time.getSecond() % 2 == 0 ? Lamp.YELLOW : Lamp.OFF;
 	}
+
+	/** Four red lamps, one lit per full five hours. */
+	public LampRow fiveHours() {
+		return LampRow.light(time.getHour() / 5, 4, Lamp.RED);
+	}
 }
