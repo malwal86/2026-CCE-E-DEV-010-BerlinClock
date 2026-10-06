@@ -83,6 +83,48 @@ class ConversionControllerTest {
 	}
 
 	@Test
+	void findsAConversionById() {
+		service.convert("00:00:00");
+		service.convert("23:59:59");
+
+		assertThat(mvc.get().uri("/api/conversions/2"))
+				.hasStatusOk()
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "id": 2,
+						  "time": "23:59:59",
+						  "convertedAt": "2026-10-05T14:03:12Z",
+						  "clock": "ORRRRRRROYYRYYRYYRYYYYYY",
+						  "seconds": "O",
+						  "fiveHours": "RRRR",
+						  "singleHours": "RRRO",
+						  "fiveMinutes": "YYRYYRYYRYY",
+						  "singleMinutes": "YYYY"
+						}""");
+	}
+
+	@Test
+	void anUnknownConversionIsNotFoundWithAProblemDetail() {
+		assertThat(mvc.get().uri("/api/conversions/999999"))
+				.hasStatus(HttpStatus.NOT_FOUND)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "title": "Conversion not found",
+						  "status": 404,
+						  "detail": "Conversion 999999 not found",
+						  "instance": "/api/conversions/999999"
+						}""");
+	}
+
+	@Test
+	void anIdThatIsNotANumberIsABadRequestWithAProblemDetail() {
+		assertThat(mvc.get().uri("/api/conversions/abc"))
+				.hasStatus(HttpStatus.BAD_REQUEST)
+				.hasContentType(APPLICATION_PROBLEM_JSON);
+	}
+
+	@Test
 	void anInvalidTimeIsABadRequestWithAProblemDetail() {
 		assertThat(mvc.post().uri("/api/conversions")
 				.contentType(APPLICATION_JSON)
