@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.kata</groupId>
 	<artifactId>berlin-clock</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>berlin-clock</name>
 	<description>Berlin Clock kata: REST API and conversion history</description>
 
