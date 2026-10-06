@@ -16,3 +16,22 @@
   font-family: ui-monospace, Menlo, monospace;
   font-weight: 600;
 }
+
+.recent-list__details {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.recent-list__when {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+}
+
+.recent-list__details .clock-code {
+  justify-content: start;
+  font-size: 0.9em;
+}

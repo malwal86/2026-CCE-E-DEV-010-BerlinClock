@@ -1,5 +1,6 @@
 import type { Conversion } from './types'
 import { BerlinClock } from '../clock/BerlinClock'
+import { ClockCode } from '../clock/ClockCode'
 import './RecentConversions.css'
 
 interface Props {
@@ -16,13 +17,18 @@ export function RecentConversions({ conversions }: Props) {
         <ol className="recent-list">
           {conversions.map((conversion) => (
             <li key={conversion.id} className="recent-list__entry">
-              <BerlinClock clock={conversion} size="small" />
-              <span className="recent-list__time" data-testid="time">
-                {conversion.time}
-              </span>
-              <time className="muted" dateTime={conversion.convertedAt}>
-                {new Date(conversion.convertedAt).toLocaleString()}
-              </time>
+              <BerlinClock clock={conversion} time={conversion.time} size="small" />
+              <div className="recent-list__details">
+                <p className="recent-list__when">
+                  <span className="recent-list__time" data-testid="time">
+                    {conversion.time}
+                  </span>
+                  <time className="muted" dateTime={conversion.convertedAt}>
+                    {new Date(conversion.convertedAt).toLocaleString()}
+                  </time>
+                </p>
+                <ClockCode code={conversion.clock} time={conversion.time} />
+              </div>
             </li>
           ))}
         </ol>
