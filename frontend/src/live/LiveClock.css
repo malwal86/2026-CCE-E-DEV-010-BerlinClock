@@ -13,3 +13,19 @@
   font-size: 1.25rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* The backend is unreachable: the time shown is the last one it read, not the current one. */
+.live--stale > :not(h2) {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}
+
+.banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: 0.75rem;
+  background: var(--danger-surface);
+  color: var(--danger);
+  font-weight: 600;
+}

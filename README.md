@@ -23,7 +23,8 @@ in a persisted history.
 | B1 · Revisit a past conversion | ✅ Done |
 | B2 · Clear the history | ✅ Done |
 | C1 · Live clock ticking every second | ✅ Done |
-| C2 – D2 | Planned (see the PDF) |
+| C2 · Resilience when the backend or database is unavailable | ✅ Done |
+| D1 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -215,6 +216,29 @@ curl -s 'localhost:3000/api/berlin-clock?time=24:00:00'
 # {"detail":"Invalid time '24:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59","instance":"/api/berlin-clock",…}
 ```
 
+## Try it yourself (story C2)
+
+With `docker compose up` running and http://localhost:3000 open:
+
+1. `docker compose stop db`: the live clock keeps ticking (it never uses the database). Convert `12:00:00`: the form
+   says *"History is temporarily unavailable. Your conversion was not saved."* and **Recent conversions** says
+   *"History unavailable"*.
+2. `docker compose stop backend`: within a couple of seconds a banner says *"Backend unavailable. Retrying…"* and the
+   live clock stays on its last time, dimmed.
+3. `docker compose start db backend`: the banner goes by itself once the backend answers, and the clock shows the
+   current time again. Convert a time: it is saved and the history is back.
+
+Through the API (database stopped, about 2 s per call):
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"12:00:00"}'
+# HTTP/1.1 503   Content-Type: application/problem+json
+# {"detail":"History is temporarily unavailable. Your conversion was not saved.","instance":"/api/conversions",
+#  "status":503,"title":"History unavailable"}
+curl -s 'localhost:3000/api/berlin-clock?time=12:00:00'
+# 200 {"time":"12:00:00","clock":"YRROORROOOOOOOOOOOOOOOOO",…}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -240,7 +264,7 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest`, `LiveClockControllerTest` |
-| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest` |
+| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest`, `DatabaseDownAcceptanceTest` (stops its own PostgreSQL) |
 | UI | Vitest, React Testing Library, MSW, fake timers for the live clock | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx`, `LiveClock.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
@@ -254,11 +278,12 @@ backend/                     Spring Boot 4.1 · Java 21
     clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp, LampRow) and the strict HH:mm:ss
                              input contract (DigitalTime), pure Java, no framework
     conversion/              Feature: conversion history, layered inside
-      web/                   ConversionController, request/response DTOs, ConversionNotFoundException (404)
+      web/                   ConversionController, request/response DTOs, ConversionNotFoundException (404),
+                             HistoryUnavailableHandler (503 when the database is down)
       application/           ConversionService use case, Conversion, ConversionHistory port
       persistence/           JdbcClient implementation of the port
     live/                    Feature: read-only GET /api/berlin-clock for the live clock (web layer only, no DB)
-    error/                   ApiExceptionHandler: errors shared by every feature, as problem+json
+    error/                   ApiExceptionHandler: errors shared by every feature, as problem+json (500 for the unexpected)
     BerlinClockApplicationConfiguration   System Clock bean (JDK type, so declared with @Bean)
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
@@ -283,6 +308,13 @@ docker-compose.yml           db + backend + frontend
   time zone (UTC inside Docker) never matters. Ticks are not saved: one row a second per tab would bury the real
   history. Requests are numbered and an answer older than the one shown is dropped, so the clock never moves backwards;
   each tick is scheduled for the next whole second.
+- **Say clearly when something is down, never show stale data as current.** The database down is a `503`
+  problem detail (*"History unavailable"*), and a conversion that could not be saved says so. Anything unexpected is a
+  `500` with no internals (it is logged instead). The live clock does not need the database, so it keeps ticking.
+  With the backend down, a banner appears, the live clock stays on its last time, dimmed, and keeps retrying every
+  second until it answers. Timeouts are kept short so this shows within ~2 s: Hikari's connection timeout (30 s by
+  default) and nginx's proxy connect timeout (60 s by default). Flyway retries at start-up, so a late database
+  does not stop the backend.
 - **Destructive actions are confirmed inside the page**, not with the browser's `confirm()`: the question stays
   styled, testable and accessible, and focus starts on **Cancel**.
 - **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
@@ -292,7 +324,7 @@ docker-compose.yml           db + backend + frontend
   23:59:59 (`24:00:00` is rejected). The API takes the time as text so JSON binding cannot loosen the rule,
   and an invalid time never reaches the database.
 - **Errors are RFC 9457 problem details** (`application/problem+json`, with `title`, `status`, `detail`, `instance`).
-  The UI shows `detail` as written.
+  The UI shows `detail` as written: next to the time field for a `400`, under the form for anything else.
 - **Rows travel in the kata notation** (`"fiveHours": "RRRO"`): one character per lamp, left to right. The UI's
   generic `LampRow` draws any row from it, so each later row only adds a field. The whole clock travels as
   `"clock"`, the kata's 24-character code, next to the rows.

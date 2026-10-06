@@ -5,6 +5,13 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/berlin_clock}
     username: ${DB_USERNAME:berlin}
     password: ${DB_PASSWORD:berlin}
+    hikari:
+      # Database down: answer 503 within ~2 s instead of keeping the reader waiting 30 s (Hikari's default).
+      connection-timeout: 2000
+      validation-timeout: 1000
+  flyway:
+    # Database late at start-up: wait for it instead of failing (10 tries, pausing 1 s, 2 s, 4 s… up to 2 min).
+    connect-retries: 10
 server:
   # Behind nginx: build absolute URLs (e.g. Location) from the X-Forwarded-* / Host headers.
   forward-headers-strategy: framework
