@@ -24,7 +24,8 @@ in a persisted history.
 | B2 · Clear the history | ✅ Done |
 | C1 · Live clock ticking every second | ✅ Done |
 | C2 · Resilience when the backend or database is unavailable | ✅ Done |
-| D1 – D2 | Planned (see the PDF) |
+| D1 · Explorable API documentation | ✅ Done |
+| D2 · Reviewer guide and TDD journey | Planned (see the PDF) |
 
 ---
 
@@ -44,6 +45,7 @@ Then open **http://localhost:3000**.
 |---|---|---|
 | UI (nginx) | http://localhost:3000 | Proxies `/api` to the backend: one origin, no CORS |
 | API (Spring Boot) | http://localhost:8080/api/conversions | |
+| API docs (Swagger UI) | http://localhost:8080/swagger-ui.html | Try every endpoint; the contract is `/openapi.yaml` (also at `/v3/api-docs`) |
 | PostgreSQL 17 | `localhost:5433`, db `berlin_clock`, user/password `berlin` | Host port 5433 avoids clashing with a local PostgreSQL |
 
 Stop with `Ctrl+C`, or `docker compose down`. The history survives restarts. To wipe it, use **Clear history** in the page (story B2) or
@@ -239,6 +241,68 @@ curl -s 'localhost:3000/api/berlin-clock?time=12:00:00'
 # 200 {"time":"12:00:00","clock":"YRROORROOOOOOOOOOOOOOOOO",…}
 ```
 
+## Try it yourself (story D1)
+
+1. Open http://localhost:8080/swagger-ui.html. The five endpoints are grouped under **Conversions** and **Live clock**,
+   each with its responses, examples and error schemas (`ProblemDetail`).
+2. **POST /api/conversions** → **Try it out** → body `{"time":"16:50:06"}` → **Execute**: `201`, with the `Location`
+   of the new conversion.
+3. **GET /api/conversions** → **Try it out** → **Execute**: the new entry is first. It also appears in **Recent
+   conversions** at http://localhost:3000.
+4. The machine-readable contract: `curl -s localhost:8080/v3/api-docs` (OpenAPI 3.0, YAML; the same file as
+   `/openapi.yaml`, edited in `backend/src/main/resources/static/openapi.yaml`).
+
+## API reference
+
+Every endpoint, with copy-paste examples (through nginx on `:3000`; the backend answers the same on `:8080`).
+Errors are `application/problem+json`. The full contract, with schemas, is at http://localhost:8080/swagger-ui.html.
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `POST /api/conversions` body `{"time":"HH:mm:ss"}` | `201` + `Location` + conversion | `400` invalid or missing time · `503` database down |
+| `GET /api/conversions` | `200` the latest 10, newest first | `503` database down |
+| `GET /api/conversions/{id}` | `200` conversion | `404` unknown id · `503` database down |
+| `DELETE /api/conversions` | `204` (idempotent) | `503` database down |
+| `GET /api/berlin-clock?time=HH:mm:ss` | `200` clock, not saved | `400` invalid or missing time |
+
+```bash
+# Convert a time: saved in the history
+curl -i -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"16:50:06"}'
+# HTTP/1.1 201   Location: http://localhost:3000/api/conversions/12
+# {"id":12,"time":"16:50:06","convertedAt":"2026-10-05T14:03:12Z","clock":"YRRROROOOYYRYYRYYRYOOOOO","seconds":"Y",
+#  "fiveHours":"RRRO","singleHours":"ROOO","fiveMinutes":"YYRYYRYYRYO","singleMinutes":"OOOO"}
+
+# An invalid time: nothing is saved
+curl -i -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"25:00:00"}'
+# HTTP/1.1 400   Content-Type: application/problem+json
+# {"detail":"Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59",
+#  "instance":"/api/conversions","status":400,"title":"Invalid time"}
+
+# The history, newest first
+curl -s localhost:3000/api/conversions
+# [{"id":12,"time":"16:50:06","convertedAt":"2026-10-05T14:03:12Z","clock":"YRRROROOOYYRYYRYYRYOOOOO",…}]
+
+# One conversion again, and an unknown one
+curl -s localhost:3000/api/conversions/12
+# {"id":12,"time":"16:50:06","convertedAt":"2026-10-05T14:03:12Z","clock":"YRRROROOOYYRYYRYYRYOOOOO",…}
+curl -s localhost:3000/api/conversions/999999
+# {"detail":"Conversion 999999 not found","instance":"/api/conversions/999999","status":404,"title":"Conversion not found"}
+
+# Clear the history
+curl -s -X DELETE localhost:3000/api/conversions -o /dev/null -w '%{http_code}\n'
+# 204
+
+# Show a time without saving it (the live clock), and an invalid one
+curl -s 'localhost:3000/api/berlin-clock?time=16:50:06'
+# {"time":"16:50:06","clock":"YRRROROOOYYRYYRYYRYOOOOO","seconds":"Y","fiveHours":"RRRO","singleHours":"ROOO",
+#  "fiveMinutes":"YYRYYRYYRYO","singleMinutes":"OOOO"}
+curl -s 'localhost:3000/api/berlin-clock?time=24:00:00'
+# {"detail":"Invalid time '24:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59","instance":"/api/berlin-clock",
+#  "status":400,"title":"Invalid time"}
+```
+
+With the database stopped, the four `/api/conversions` calls answer `503` *"History unavailable"* (see story C2).
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -264,7 +328,8 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest`, `LiveClockControllerTest` |
-| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest`, `DatabaseDownAcceptanceTest` (stops its own PostgreSQL) |
+| API contract | `@WebMvcTest` + Atlassian OpenAPI validator: every documented answer, request and response checked against `openapi.yaml` | `ApiContractTest` |
+| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest`, `DatabaseDownAcceptanceTest` (stops its own PostgreSQL), `ApiDocumentationAcceptanceTest` (contract and Swagger UI served) |
 | UI | Vitest, React Testing Library, MSW, fake timers for the live clock | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx`, `LiveClock.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
@@ -315,6 +380,12 @@ docker-compose.yml           db + backend + frontend
   second until it answers. Timeouts are kept short so this shows within ~2 s: Hikari's connection timeout (30 s by
   default) and nginx's proxy connect timeout (60 s by default). Flyway retries at start-up, so a late database
   does not stop the backend.
+- **The API contract is one hand-written file, checked by tests.** `backend/src/main/resources/static/openapi.yaml`
+  describes every endpoint, its examples and every error as a `ProblemDetail`, so the Java code carries no
+  documentation annotations. `ApiContractTest` produces every documented answer from the real controllers and
+  validates request and response against the file (unknown fields, missing statuses and wrong shapes fail the
+  build), so the two cannot drift apart silently. Swagger UI is a static page using the `swagger-ui` webjar, on the
+  backend's port (`:8080`), not behind nginx, so the UI on `:3000` only exposes `/api`.
 - **Destructive actions are confirmed inside the page**, not with the browser's `confirm()`: the question stays
   styled, testable and accessible, and focus starts on **Cancel**.
 - **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
