@@ -43,4 +43,10 @@ class DigitalTimeTest {
 				.isInstanceOf(InvalidTimeException.class)
 				.hasMessage("A time is required (HH:mm:ss)");
 	}
+
+	@ParameterizedTest(name = "{0}")
+	@ValueSource(strings = { "00:00:00", "12:00:00", "23:59:59" })
+	void formatsATimeOfDayWithItsSeconds(String text) {
+		assertThat(DigitalTime.format(LocalTime.parse(text))).isEqualTo(text);
+	}
 }
