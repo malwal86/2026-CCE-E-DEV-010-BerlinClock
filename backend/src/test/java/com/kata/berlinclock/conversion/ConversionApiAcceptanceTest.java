@@ -7,6 +7,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
@@ -212,6 +213,42 @@ class ConversionApiAcceptanceTest {
 				.expectBody()
 				.jsonPath("$[0].time").isEqualTo("12:32:00")
 				.jsonPath("$[0].singleMinutes").isEqualTo("YYOO");
+	}
+
+	@ParameterizedTest(name = "{0} -> {1}")
+	@CsvSource({
+			"00:00:00, YOOOOOOOOOOOOOOOOOOOOOOO",
+			"23:59:59, ORRRRRRROYYRYYRYYRYYYYYY",
+			"16:50:06, YRRROROOOYYRYYRYYRYOOOOO",
+			"11:37:01, ORROOROOOYYRYYRYOOOOYYOO",
+	})
+	void convertingATimeShowsTheEntireClockAsOneCode(String time, String clock) {
+		client.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.body("{\"time\": \"%s\"}".formatted(time))
+				.exchange()
+				.expectStatus().isCreated()
+				.expectBody()
+				.jsonPath("$.clock").isEqualTo(clock);
+
+		client.get().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$[0].time").isEqualTo(time)
+				.jsonPath("$[0].clock").isEqualTo(clock);
+	}
+
+	@Test
+	void earlierConversionsGainTheEntireClockCode() {
+		jdbc.sql("INSERT INTO conversion (time, converted_at) VALUES ('11:37:01', '2026-10-05T14:03:12Z')").update();
+
+		client.get().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$[0].time").isEqualTo("11:37:01")
+				.jsonPath("$[0].clock").isEqualTo("ORROOROOOYYRYYRYOOOOYYOO");
 	}
 
 	@ParameterizedTest(name = "{0}")

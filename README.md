@@ -18,7 +18,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A4 · Single-hours row | ✅ Done |
 | A5 · Five-minutes row | ✅ Done |
 | A6 · Single-minutes row | ✅ Done |
-| A7 – D2 | Planned (see the PDF) |
+| A7 · The entire Berlin Clock as one 24-character code | ✅ Done |
+| B1 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -132,6 +133,27 @@ curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 # {"id":6,"time":"12:34:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RROO","fiveMinutes":"YYRYYROOOOO","singleMinutes":"YYYY"}
 ```
 
+## Try it yourself (story A7)
+
+The kata's Feature 1 is complete: the whole clock is also one 24-character code, every lamp from top to bottom
+(seconds + five hours + single hours + five minutes + single minutes = 1 + 4 + 4 + 11 + 4).
+
+1. Type `16:50:06` and press **Convert**. Under the clock you see **`YRRROROOOYYRYYRYYRYOOOOO`**. Click **Copy**
+   (it reads *Copied* for a moment) and paste it somewhere.
+2. Every entry in **Recent conversions** shows its code and its own **Copy** button, including the ones saved
+   before this story (computed on read).
+3. Turn on VoiceOver (`Cmd+F5`) and move to the clock: it is read as *"Berlin Clock showing 16:50:06"*, so it can
+   be read without seeing colours.
+
+Other kata examples: `00:00:00` → `YOOOOOOOOOOOOOOOOOOOOOOO`, `23:59:59` → `ORRRRRRROYYRYYRYYRYYYYYY`,
+`11:37:01` → `ORROOROOOYYRYYRYOOOOYYOO`. Through the API:
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"16:50:06"}'
+# {"id":7,"time":"16:50:06","convertedAt":"…","clock":"YRRROROOOYYRYYRYYRYOOOOO","seconds":"Y","fiveHours":"RRRO",
+#  "singleHours":"ROOO","fiveMinutes":"YYRYYRYYRYO","singleMinutes":"OOOO"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -153,12 +175,12 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `SingleMinutesRowTest`, `DigitalTimeTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables, a property check over all 86,400 seconds | `BerlinClockTest`, `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `SingleMinutesRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |
 | Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest` |
-| UI | Vitest, React Testing Library, MSW | `App.test.tsx`, `LampRow.test.tsx` |
+| UI | Vitest, React Testing Library, MSW | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
 on the `clock` package) and `npm run coverage` for the frontend.
@@ -178,7 +200,7 @@ backend/                     Spring Boot 4.1 · Java 21
     BerlinClockApplicationConfiguration   System Clock bean (JDK type, so declared with @Bean)
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
-  src/clock/                 Feature: BerlinClock and LampRow components + lamp/row types
+  src/clock/                 Feature: BerlinClock, LampRow and ClockCode components + lamp/row types
   src/conversion/            Feature: ConvertForm, RecentConversions, API client, Conversion type
   src/App.tsx                Page: wires the features together
 docs/                        User stories (PDF + HTML source)
@@ -197,7 +219,10 @@ docker-compose.yml           db + backend + frontend
 - **Errors are RFC 9457 problem details** (`application/problem+json`, with `title`, `status`, `detail`, `instance`).
   The UI shows `detail` as written.
 - **Rows travel in the kata notation** (`"fiveHours": "RRRO"`): one character per lamp, left to right. The UI's
-  generic `LampRow` draws any row from it, so each later row only adds a field.
+  generic `LampRow` draws any row from it, so each later row only adds a field. The whole clock travels as
+  `"clock"`, the kata's 24-character code, next to the rows.
+- **Readable without colours.** Each clock is one `role="img"` labelled *"Berlin Clock showing HH:mm:ss"*, and
+  its code is shown as text with a copy button.
 - **TDD, committed per layer.** Each commit is green and lists its red → green cycles in the message.
 
 See Appendix C of the user stories PDF for the full list.

@@ -1,7 +1,9 @@
 package com.kata.berlinclock.clock;
 
 import java.time.LocalTime;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public final class BerlinClock {
 
@@ -43,6 +45,13 @@ public final class BerlinClock {
 	/** Four yellow lamps, one lit per minute left over after the five-minute blocks. */
 	public LampRow singleMinutes() {
 		return leftOverAfterFiveBlocks(time.getMinute(), Lamp.YELLOW);
+	}
+
+	/** The entire clock in the kata notation, every lamp from top to bottom: 1 + 4 + 4 + 11 + 4 = 24 characters. */
+	public String code() {
+		return seconds().symbol() + Stream.of(fiveHours(), singleHours(), fiveMinutes(), singleMinutes())
+				.map(LampRow::notation)
+				.collect(Collectors.joining());
 	}
 
 	/** Four lamps, one lit per unit left over after the blocks of five counted by the row above. */

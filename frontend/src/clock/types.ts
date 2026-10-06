@@ -12,4 +12,6 @@ export interface BerlinClockRows {
   fiveMinutes: string
   /** Four yellow lamps, in the kata notation (e.g. "YYOO"). */
   singleMinutes: string
+  /** The entire clock as one 24-character code, every lamp from top to bottom (e.g. "YRRROROOOYYRYYRYYRYOOOOO"). */
+  clock: string
 }

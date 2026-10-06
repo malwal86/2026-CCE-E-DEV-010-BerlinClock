@@ -8,7 +8,7 @@ import type { Conversion } from './conversion/types'
 import { server } from './test/server'
 
 /** What the real API answers for the times these tests convert (the rules live in the backend). */
-const BERLIN_CLOCK: Record<string, BerlinClockRows> = {
+const BERLIN_CLOCK: Record<string, Omit<BerlinClockRows, 'clock'>> = {
   '00:00:00': { seconds: 'Y', fiveHours: 'OOOO', singleHours: 'OOOO', fiveMinutes: 'OOOOOOOOOOO', singleMinutes: 'OOOO' },
   '23:59:59': { seconds: 'O', fiveHours: 'RRRR', singleHours: 'RRRO', fiveMinutes: 'YYRYYRYYRYY', singleMinutes: 'YYYY' },
   '16:35:00': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYOOOO', singleMinutes: 'OOOO' },
@@ -16,10 +16,14 @@ const BERLIN_CLOCK: Record<string, BerlinClockRows> = {
   '12:35:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYRYOOOO', singleMinutes: 'OOOO' },
   '12:34:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYROOOOO', singleMinutes: 'YYYY' },
   '12:32:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RROO', fiveMinutes: 'YYRYYROOOOO', singleMinutes: 'YYOO' },
+  '16:50:06': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYYRYO', singleMinutes: 'OOOO' },
+  '11:37:01': { seconds: 'O', fiveHours: 'RROO', singleHours: 'ROOO', fiveMinutes: 'YYRYYRYOOOO', singleMinutes: 'YYOO' },
 }
 
 function conversion(id: number, time: string): Conversion {
-  return { id, time, ...BERLIN_CLOCK[time], convertedAt: '2026-10-05T14:03:12Z' }
+  const rows = BERLIN_CLOCK[time]
+  const clock = rows.seconds + rows.fiveHours + rows.singleHours + rows.fiveMinutes + rows.singleMinutes
+  return { id, time, ...rows, clock, convertedAt: '2026-10-05T14:03:12Z' }
 }
 
 const lampsOf = (row: HTMLElement) => Array.from(row.children, (lamp) => lamp.getAttribute('data-lamp')).join('')
@@ -111,6 +115,29 @@ describe('Converting a time', () => {
     expect(lampsOf(result.getByTestId('single-minutes-row'))).toBe('YYYY')
   })
 
+  it('shows the entire clock as an image labelled with its time, and as its 24-character code', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '16:50:06{Enter}')
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(result.getByRole('img', { name: 'Berlin Clock showing 16:50:06' })).toBeInTheDocument()
+    expect(result.getByText('YRRROROOOYYRYYRYYRYOOOOO')).toBeInTheDocument()
+  })
+
+  it('copies the code of the converted time', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory()
+    render(<App />)
+    await user.type(screen.getByLabelText('Time (HH:mm:ss)'), '16:50:06{Enter}')
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+
+    await user.click(result.getByRole('button', { name: 'Copy code for 16:50:06' }))
+
+    expect(await navigator.clipboard.readText()).toBe('YRRROROOOYYRYYRYYRYOOOOO')
+  })
+
   it('submits with the Enter key', async () => {
     givenTheApiHasHistory()
     render(<App />)
@@ -175,6 +202,16 @@ describe('Recent conversions', () => {
 
     const entry = (await recentConversions().findAllByRole('listitem'))[0]
     expect(lampsOf(within(entry).getByTestId('single-minutes-row'))).toBe('YYOO')
+  })
+
+  it('shows the code of each conversion, including earlier ones, with a copy button', async () => {
+    givenTheApiHasHistory(conversion(1, '11:37:01'))
+    render(<App />)
+
+    const entry = within((await recentConversions().findAllByRole('listitem'))[0])
+    expect(entry.getByRole('img', { name: 'Berlin Clock showing 11:37:01' })).toBeInTheDocument()
+    expect(entry.getByText('ORROOROOOYYRYYRYOOOOYYOO')).toBeInTheDocument()
+    expect(entry.getByRole('button', { name: 'Copy code for 11:37:01' })).toBeInTheDocument()
   })
 
   it('shows when each conversion was made', async () => {
