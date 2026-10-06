@@ -1,6 +1,6 @@
-import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
+import { render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -121,6 +121,15 @@ function givenEverythingIsBackUp() {
   outage = undefined
 }
 
+const SLOW_ANSWER = 100
+
+/** Holds back the fake API's answers to `path`, so a request sent after them can answer first. */
+function givenTheApiIsSlowToAnswer(path: string) {
+  server.use(http.all(path, () => delay(SLOW_ANSWER)))
+}
+
+const afterTheSlowAnswersArrive = () => act(() => new Promise((resolve) => setTimeout(resolve, SLOW_ANSWER * 2)))
+
 function givenTheApiRejects(time: string, detail: string) {
   rejections.set(time, detail)
 }
@@ -220,6 +229,28 @@ describe('Converting a time', () => {
 
     const result = within(await screen.findByRole('region', { name: 'Result' }))
     expect(result.getByTestId('seconds-lamp')).toHaveAttribute('data-lamp', 'O')
+  })
+
+  it('ignores spaces around the time typed, as when it is pasted', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), ' 16:50:06 {Enter}')
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(result.getByRole('img', { name: 'Berlin Clock showing 16:50:06' })).toBeInTheDocument()
+  })
+
+  it('converts once when submitted again before the answer arrives', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory()
+    givenTheApiIsSlowToAnswer('/api/conversions')
+    render(<App />)
+
+    await user.type(screen.getByLabelText('Time (HH:mm:ss)'), '16:50:06{Enter}{Enter}')
+
+    await screen.findByRole('region', { name: 'Result' })
+    expect(conversions).toBe(1)
   })
 
   it('adds the conversion to the top of the recent conversions', async () => {
@@ -400,6 +431,37 @@ describe('Revisiting a conversion', () => {
     const result = within(screen.getByRole('region', { name: 'Result' }))
     expect(await result.findByRole('img', { name: 'Berlin Clock showing 00:00:00' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/conversions/1')
+  })
+
+  it('shows the conversion opened last, even when one opened before it answers later', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+    const slowLink = await recentConversions().findByRole('link', { name: '00:00:00' })
+    givenTheApiIsSlowToAnswer('/api/conversions/1')
+
+    await user.click(slowLink)
+    await user.click(recentConversions().getByRole('link', { name: '23:59:59' }))
+    await afterTheSlowAnswersArrive()
+
+    const result = within(screen.getByRole('region', { name: 'Result' }))
+    expect(result.getByRole('img', { name: 'Berlin Clock showing 23:59:59' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/conversions/2')
+  })
+
+  it('stays on the start page when a conversion left with Back answers late', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    const slowLink = await recentConversions().findByRole('link', { name: '00:00:00' })
+    givenTheApiIsSlowToAnswer('/api/conversions/1')
+
+    await user.click(slowLink)
+    window.history.back()
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
+    await afterTheSlowAnswersArrive()
+
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
   })
 
   it('closes the result when going back to the start page', async () => {
