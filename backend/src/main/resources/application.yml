@@ -15,3 +15,6 @@ spring:
 server:
   # Behind nginx: build absolute URLs (e.g. Location) from the X-Forwarded-* / Host headers.
   forward-headers-strategy: framework
+springdoc:
+  # Every answer is JSON (errors say application/problem+json themselves), not springdoc's default "*/*".
+  default-produces-media-type: application/json
