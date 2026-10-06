@@ -6,4 +6,6 @@ export interface BerlinClockRows {
   seconds: Lamp
   /** Four red lamps, in the kata notation (e.g. "RRRO"). */
   fiveHours: string
+  /** Four red lamps, in the kata notation (e.g. "RRRR"). */
+  singleHours: string
 }

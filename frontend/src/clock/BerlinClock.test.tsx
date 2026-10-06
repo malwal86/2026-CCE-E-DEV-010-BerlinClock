@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { BerlinClock } from './BerlinClock'
 import type { BerlinClockRows } from './types'
 
-const clock = (rows: Partial<BerlinClockRows>): BerlinClockRows => ({ seconds: 'Y', fiveHours: 'OOOO', ...rows })
+const clock = (rows: Partial<BerlinClockRows>): BerlinClockRows => ({
+  seconds: 'Y',
+  fiveHours: 'OOOO',
+  singleHours: 'OOOO',
+  ...rows,
+})
 
 const lampsOf = (row: HTMLElement) => Array.from(row.children, (lamp) => lamp.getAttribute('data-lamp')).join('')
 
@@ -24,5 +29,11 @@ describe('BerlinClock', () => {
     render(<BerlinClock clock={clock({ fiveHours: 'RRRO' })} />)
 
     expect(lampsOf(screen.getByTestId('five-hours-row'))).toBe('RRRO')
+  })
+
+  it('shows the single hours row', () => {
+    render(<BerlinClock clock={clock({ singleHours: 'RRRR' })} />)
+
+    expect(lampsOf(screen.getByTestId('single-hours-row'))).toBe('RRRR')
   })
 })

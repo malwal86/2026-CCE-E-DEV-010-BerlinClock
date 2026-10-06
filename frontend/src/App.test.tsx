@@ -9,9 +9,10 @@ import { server } from './test/server'
 
 /** What the real API answers for the times these tests convert (the rules live in the backend). */
 const BERLIN_CLOCK: Record<string, BerlinClockRows> = {
-  '00:00:00': { seconds: 'Y', fiveHours: 'OOOO' },
-  '23:59:59': { seconds: 'O', fiveHours: 'RRRR' },
-  '16:35:00': { seconds: 'Y', fiveHours: 'RRRO' },
+  '00:00:00': { seconds: 'Y', fiveHours: 'OOOO', singleHours: 'OOOO' },
+  '23:59:59': { seconds: 'O', fiveHours: 'RRRR', singleHours: 'RRRO' },
+  '16:35:00': { seconds: 'Y', fiveHours: 'RRRO', singleHours: 'ROOO' },
+  '14:35:00': { seconds: 'Y', fiveHours: 'RROO', singleHours: 'RRRR' },
 }
 
 function conversion(id: number, time: string): Conversion {
@@ -76,6 +77,17 @@ describe('Converting a time', () => {
     expect(lampsOf(result.getByTestId('five-hours-row'))).toBe('RRRO')
   })
 
+  it('shows the single hours row under the five hours row', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '14:35:00{Enter}')
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(lampsOf(result.getByTestId('five-hours-row'))).toBe('RROO')
+    expect(lampsOf(result.getByTestId('single-hours-row'))).toBe('RRRR')
+  })
+
   it('submits with the Enter key', async () => {
     givenTheApiHasHistory()
     render(<App />)
@@ -116,6 +128,14 @@ describe('Recent conversions', () => {
 
     const entry = (await recentConversions().findAllByRole('listitem'))[0]
     expect(lampsOf(within(entry).getByTestId('five-hours-row'))).toBe('RRRR')
+  })
+
+  it('shows the single hours row of each conversion, including earlier ones', async () => {
+    givenTheApiHasHistory(conversion(1, '23:59:59'))
+    render(<App />)
+
+    const entry = (await recentConversions().findAllByRole('listitem'))[0]
+    expect(lampsOf(within(entry).getByTestId('single-hours-row'))).toBe('RRRO')
   })
 
   it('shows when each conversion was made', async () => {
