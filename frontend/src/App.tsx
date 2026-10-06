@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiProblem, convertTime, fetchConversion, fetchRecentConversions } from './conversion/api'
+import { ApiProblem, clearHistory, convertTime, fetchConversion, fetchRecentConversions } from './conversion/api'
 import { conversionIdIn, conversionPath } from './conversion/route'
 import type { Conversion } from './conversion/types'
 import { BerlinClock } from './clock/BerlinClock'
@@ -67,6 +67,13 @@ function App() {
     setRecent(await fetchRecentConversions())
   }
 
+  async function clear() {
+    await clearHistory()
+    setRecent([])
+    // The conversion in the address bar is gone too: say so rather than show a deleted one.
+    if (result) await show(result.id)
+  }
+
   function open(id: number) {
     navigate(conversionPath(id))
     show(id)
@@ -94,7 +101,7 @@ function App() {
           )}
         </section>
       )}
-      <RecentConversions conversions={recent} onOpen={open} openId={result?.id} />
+      <RecentConversions conversions={recent} onOpen={open} openId={result?.id} onClear={clear} />
     </main>
   )
 }
