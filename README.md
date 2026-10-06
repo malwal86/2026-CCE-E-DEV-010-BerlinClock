@@ -15,7 +15,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A1 · Walking skeleton: convert a time, see the seconds lamp, find it in history | ✅ Done |
 | A2 · Clear feedback for invalid times | ✅ Done |
 | A3 · Five-hours row | ✅ Done |
-| A4 – D2 | Planned (see the PDF) |
+| A4 · Single-hours row | ✅ Done |
+| A5 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -87,6 +88,20 @@ curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 # {"id":3,"time":"16:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RRRO"}
 ```
 
+## Try it yourself (story A4)
+
+1. Type `14:35:00` and press **Convert**. Rows 2 and 3 read **`RROO` / `RRRR`**: two blocks of five hours plus
+   four single hours (2 × 5 + 4 = 14 h).
+2. Type `02:04:00` and press **Convert**. Row 2 is all dark and row 3 shows **two red lamps** (`RROO`).
+3. Older entries in **Recent conversions** gain the single-hours row too (`23:59:59` → `RRRO`), computed on read.
+
+Other kata examples: `00:00:00` → `OOOO`, `08:23:00` → `RRRO`. Through the API:
+
+```bash
+curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/json' -d '{"time":"14:35:00"}'
+# {"id":4,"time":"14:35:00","convertedAt":"…","seconds":"Y","fiveHours":"RROO","singleHours":"RRRR"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -108,7 +123,7 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 
 | Layer | Tooling | Example |
 |---|---|---|
-| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `DigitalTimeTest` |
+| Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables | `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |
