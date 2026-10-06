@@ -33,6 +33,14 @@ export async function convertTime(time: string): Promise<Conversion> {
   return response.json()
 }
 
+export async function fetchConversion(id: number): Promise<Conversion> {
+  const response = await fetch(url(`/api/conversions/${id}`))
+  if (!response.ok) {
+    throw new ApiProblem(await response.json())
+  }
+  return response.json()
+}
+
 export async function fetchRecentConversions(): Promise<Conversion[]> {
   const response = await fetch(url('/api/conversions'))
   return response.json()

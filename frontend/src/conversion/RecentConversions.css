@@ -35,3 +35,13 @@
   justify-content: start;
   font-size: 0.9em;
 }
+
+a.recent-list__time {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+a.recent-list__time[aria-current='page'] {
+  color: var(--text);
+  text-decoration: none;
+}

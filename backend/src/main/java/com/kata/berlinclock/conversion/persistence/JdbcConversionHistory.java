@@ -7,6 +7,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -48,6 +49,17 @@ class JdbcConversionHistory implements ConversionHistory {
 				.param("limit", limit)
 				.query(JdbcConversionHistory::toConversion)
 				.list();
+	}
+
+	@Override
+	public Optional<Conversion> findById(long id) {
+		return jdbc.sql("""
+				SELECT id, time, converted_at
+				FROM conversion
+				WHERE id = :id""")
+				.param("id", id)
+				.query(JdbcConversionHistory::toConversion)
+				.optional();
 	}
 
 	private static Conversion toConversion(ResultSet row, int rowNumber) throws SQLException {

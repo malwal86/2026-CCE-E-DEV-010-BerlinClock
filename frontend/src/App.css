@@ -40,3 +40,9 @@ h2 {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 1.25rem;
 }
+
+.result__error {
+  justify-self: start;
+  margin: 0;
+  color: var(--danger);
+}

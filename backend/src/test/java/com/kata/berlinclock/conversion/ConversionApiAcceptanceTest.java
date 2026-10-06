@@ -14,6 +14,7 @@ import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTe
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -284,6 +285,40 @@ class ConversionApiAcceptanceTest {
 				.jsonPath("$.detail").isEqualTo("A time is required (HH:mm:ss)");
 
 		assertThat(savedConversions()).isZero();
+	}
+
+	@Test
+	void aConversionCanBeOpenedAgainFromItsLocation() {
+		var created = client.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.body("""
+						{"time": "23:59:59"}""")
+				.exchange()
+				.expectStatus().isCreated()
+				.expectBody(String.class)
+				.returnResult();
+
+		client.get().uri(created.getResponseHeaders().getLocation())
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.json(created.getResponseBody(), JsonCompareMode.STRICT)
+				.jsonPath("$.clock").isEqualTo("ORRRRRRROYYRYYRYYRYYYYYY");
+
+		assertThat(savedConversions()).isOne();
+	}
+
+	@Test
+	void anUnknownConversionIsNotFound() {
+		client.get().uri("/api/conversions/999999")
+				.exchange()
+				.expectStatus().isNotFound()
+				.expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+				.expectBody()
+				.jsonPath("$.title").isEqualTo("Conversion not found")
+				.jsonPath("$.status").isEqualTo(404)
+				.jsonPath("$.detail").isEqualTo("Conversion 999999 not found")
+				.jsonPath("$.instance").isEqualTo("/api/conversions/999999");
 	}
 
 	private long savedConversions() {

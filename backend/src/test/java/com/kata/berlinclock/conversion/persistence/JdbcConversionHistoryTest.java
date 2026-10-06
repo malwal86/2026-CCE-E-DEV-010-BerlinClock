@@ -56,4 +56,19 @@ class JdbcConversionHistoryTest {
 
 		assertThat(history.latest(10)).extracting(Conversion::id).containsExactly(later.id(), earlier.id());
 	}
+
+	@Test
+	void findsAConversionById() {
+		history.save(LocalTime.parse("00:00:00"), TEN_O_CLOCK);
+		var saved = history.save(LocalTime.parse("23:59:59"), TEN_O_CLOCK);
+
+		assertThat(history.findById(saved.id())).contains(saved);
+	}
+
+	@Test
+	void findsNothingForAnUnknownId() {
+		var saved = history.save(LocalTime.parse("23:59:59"), TEN_O_CLOCK);
+
+		assertThat(history.findById(saved.id() + 1)).isEmpty();
+	}
 }

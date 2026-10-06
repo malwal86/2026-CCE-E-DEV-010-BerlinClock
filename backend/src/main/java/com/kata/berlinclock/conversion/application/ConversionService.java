@@ -2,6 +2,7 @@ package com.kata.berlinclock.conversion.application;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,5 +33,9 @@ public class ConversionService {
 
 	public List<Conversion> recent() {
 		return history.latest(RECENT_LIMIT);
+	}
+
+	public Optional<Conversion> find(long id) {
+		return history.findById(id);
 	}
 }
