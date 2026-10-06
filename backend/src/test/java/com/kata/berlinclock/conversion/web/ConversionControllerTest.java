@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
@@ -38,7 +39,8 @@ class ConversionControllerTest {
 	private InMemoryConversionHistory history;
 
 	@BeforeEach
-	void startWithAnEmptyHistory() {
+	void startWithAWorkingEmptyHistory() {
+		history.recover();
 		history.deleteAll();
 	}
 
@@ -187,6 +189,73 @@ class ConversionControllerTest {
 				.content("not json"))
 				.hasStatus(HttpStatus.BAD_REQUEST)
 				.hasContentType(APPLICATION_PROBLEM_JSON);
+	}
+
+	@Test
+	void convertingWhileTheDatabaseIsDownIsServiceUnavailableWithAProblemDetail() {
+		givenTheDatabaseIsDown();
+
+		assertThat(mvc.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.content("""
+						{"time": "12:00:00"}"""))
+				.hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "title": "History unavailable",
+						  "status": 503,
+						  "detail": "History is temporarily unavailable. Your conversion was not saved.",
+						  "instance": "/api/conversions"
+						}""");
+	}
+
+	@Test
+	void readingTheHistoryWhileTheDatabaseIsDownIsServiceUnavailableWithAProblemDetail() {
+		givenTheDatabaseIsDown();
+
+		assertThat(mvc.get().uri("/api/conversions"))
+				.hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "title": "History unavailable",
+						  "status": 503,
+						  "detail": "History is temporarily unavailable.",
+						  "instance": "/api/conversions"
+						}""");
+	}
+
+	@Test
+	void openingOrClearingWhileTheDatabaseIsDownIsServiceUnavailableToo() {
+		givenTheDatabaseIsDown();
+
+		assertThat(mvc.get().uri("/api/conversions/1"))
+				.hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+				.hasContentType(APPLICATION_PROBLEM_JSON);
+		assertThat(mvc.delete().uri("/api/conversions"))
+				.hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+				.hasContentType(APPLICATION_PROBLEM_JSON);
+	}
+
+	@Test
+	void anUnexpectedErrorIsAnInternalServerErrorThatHidesTheInternals() {
+		history.failWith(new IllegalStateException("secret internals"));
+
+		assertThat(mvc.get().uri("/api/conversions"))
+				.hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+				.hasContentType(APPLICATION_PROBLEM_JSON)
+				.bodyJson().isStrictlyEqualTo("""
+						{
+						  "title": "Unexpected error",
+						  "status": 500,
+						  "detail": "Something went wrong. Please try again later.",
+						  "instance": "/api/conversions"
+						}""");
+	}
+
+	private void givenTheDatabaseIsDown() {
+		history.failWith(new DataAccessResourceFailureException("Connection refused"));
 	}
 
 	@TestConfiguration
