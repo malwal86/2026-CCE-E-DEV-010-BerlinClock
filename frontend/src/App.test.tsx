@@ -1,7 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
 import type { BerlinClockRows } from './clock/types'
 import type { Conversion } from './conversion/types'
@@ -31,13 +31,28 @@ const lampsOf = (row: HTMLElement) => Array.from(row.children, (lamp) => lamp.ge
 /** Times the fake API rejects, with the problem detail it answers. */
 const rejections = new Map<string, string>()
 
+/** How many times the fake API was asked to convert, to prove that opening a conversion saves nothing. */
+let conversions = 0
+
 /** A fake API backed by an in-memory history, newest first. */
 function givenTheApiHasHistory(...initial: Conversion[]) {
   const history = [...initial]
   rejections.clear()
+  conversions = 0
   server.use(
     http.get('/api/conversions', () => HttpResponse.json(history)),
+    http.get('/api/conversions/:id', ({ params }) => {
+      const found = history.find((conversion) => conversion.id === Number(params.id))
+      if (!found) {
+        return HttpResponse.json(
+          { title: 'Conversion not found', status: 404, detail: `Conversion ${params.id} not found`, instance: `/api/conversions/${params.id}` },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } },
+        )
+      }
+      return HttpResponse.json(found)
+    }),
     http.post('/api/conversions', async ({ request }) => {
+      conversions++
       const { time } = (await request.json()) as { time: string }
       const detail = rejections.get(time)
       if (detail) {
@@ -60,6 +75,12 @@ function givenTheApiRejects(time: string, detail: string) {
 function recentConversions() {
   return within(screen.getByRole('region', { name: 'Recent conversions' }))
 }
+
+function givenTheAddressIs(path: string) {
+  window.history.replaceState(null, '', path)
+}
+
+beforeEach(() => givenTheAddressIs('/'))
 
 describe('Converting a time', () => {
   it('shows the seconds lamp for the converted time', async () => {
@@ -230,6 +251,118 @@ describe('Recent conversions', () => {
   })
 })
 
+describe('Revisiting a conversion', () => {
+  it('opens a conversion from the history in the result panel, without converting it again', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+
+    await user.click(await recentConversions().findByRole('link', { name: '23:59:59' }))
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(result.getByRole('img', { name: 'Berlin Clock showing 23:59:59' })).toBeInTheDocument()
+    expect(result.getByText('ORRRRRRROYYRYYRYYRYYYYYY')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/conversions/2')
+    expect(conversions).toBe(0)
+    expect(recentConversions().getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('links each history entry to its own address', async () => {
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+
+    expect(await recentConversions().findByRole('link', { name: '23:59:59' })).toHaveAttribute('href', '/conversions/2')
+    expect(recentConversions().getByRole('link', { name: '00:00:00' })).toHaveAttribute('href', '/conversions/1')
+  })
+
+  it('marks the open conversion in the history', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+
+    await user.click(await recentConversions().findByRole('link', { name: '00:00:00' }))
+
+    await screen.findByRole('region', { name: 'Result' })
+    expect(recentConversions().getByRole('link', { name: '00:00:00' })).toHaveAttribute('aria-current', 'page')
+    expect(recentConversions().getByRole('link', { name: '23:59:59' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('leaves a click with a modifier key to the browser, to open the conversion in a new tab', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '23:59:59'))
+    render(<App />)
+    const link = await recentConversions().findByRole('link', { name: '23:59:59' })
+    link.addEventListener('click', (event) => event.preventDefault())
+
+    await user.keyboard('{Meta>}')
+    await user.click(link)
+    await user.keyboard('{/Meta}')
+
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+  })
+
+  it('opens the conversion in the address bar when the page loads, as from a shared link', async () => {
+    givenTheApiHasHistory(conversion(2, '16:50:06'), conversion(1, '11:37:01'))
+    givenTheAddressIs('/conversions/1')
+    render(<App />)
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(result.getByRole('img', { name: 'Berlin Clock showing 11:37:01' })).toBeInTheDocument()
+    expect(result.getByText('ORROOROOOYYRYYRYOOOOYYOO')).toBeInTheDocument()
+    expect(conversions).toBe(0)
+  })
+
+  it('says so when the conversion does not exist', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    givenTheAddressIs('/conversions/999999')
+    render(<App />)
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
+    expect(await result.findByRole('alert')).toHaveTextContent('Conversion 999999 not found')
+    expect(result.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('puts a converted time in the address bar, so the result can be shared', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+
+    await userEvent.type(screen.getByLabelText('Time (HH:mm:ss)'), '16:50:06{Enter}')
+
+    await screen.findByRole('region', { name: 'Result' })
+    expect(window.location.pathname).toBe('/conversions/2')
+  })
+
+  it('goes back to the previously opened conversion with the browser Back button', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+    await user.click(await recentConversions().findByRole('link', { name: '00:00:00' }))
+    await within(await screen.findByRole('region', { name: 'Result' })).findByText('YOOOOOOOOOOOOOOOOOOOOOOO')
+    await user.click(recentConversions().getByRole('link', { name: '23:59:59' }))
+    await within(screen.getByRole('region', { name: 'Result' })).findByText('ORRRRRRROYYRYYRYYRYYYYYY')
+
+    window.history.back()
+
+    const result = within(screen.getByRole('region', { name: 'Result' }))
+    expect(await result.findByRole('img', { name: 'Berlin Clock showing 00:00:00' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/conversions/1')
+  })
+
+  it('closes the result when going back to the start page', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await user.click(await recentConversions().findByRole('link', { name: '00:00:00' }))
+    await screen.findByRole('region', { name: 'Result' })
+
+    window.history.back()
+
+    await waitForElementToBeRemoved(() => screen.queryByRole('region', { name: 'Result' }))
+    expect(window.location.pathname).toBe('/')
+  })
+})
+
 describe('Invalid times', () => {
   const INVALID = "Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59"
 
@@ -248,6 +381,7 @@ describe('Invalid times', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(input).toHaveAccessibleDescription(INVALID)
     expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
   })
 
   it('leaves the recent conversions unchanged', async () => {
