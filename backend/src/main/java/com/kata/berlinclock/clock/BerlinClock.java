@@ -1,6 +1,7 @@
 package com.kata.berlinclock.clock;
 
 import java.time.LocalTime;
+import java.util.stream.IntStream;
 
 public final class BerlinClock {
 
@@ -26,5 +27,20 @@ public final class BerlinClock {
 	/** Four red lamps, one lit per hour left over after the five-hour blocks. */
 	public LampRow singleHours() {
 		return LampRow.light(time.getHour() % 5, 4, Lamp.RED);
+	}
+
+	/**
+	 * Eleven lamps, one lit per full five minutes. Lit lamps at the quarter, half and three-quarter hour
+	 * (positions 3, 6 and 9) are red; the others are yellow.
+	 */
+	public LampRow fiveMinutes() {
+		int lit = time.getMinute() / 5;
+		return new LampRow(IntStream.rangeClosed(1, 11)
+				.mapToObj(position -> position > lit ? Lamp.OFF : fiveMinutesColour(position))
+				.toList());
+	}
+
+	private static Lamp fiveMinutesColour(int position) {
+		return position % 3 == 0 ? Lamp.RED : Lamp.YELLOW;
 	}
 }
