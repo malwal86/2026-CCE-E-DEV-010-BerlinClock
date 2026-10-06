@@ -1,7 +1,8 @@
 import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { BerlinClockRows } from './clock/types'
 import type { Conversion } from './conversion/types'
@@ -37,13 +38,24 @@ let conversions = 0
 /** How many times the fake API was asked to clear the history. */
 let clears = 0
 
+/** How many times the live clock asked the fake API for the time. */
+let ticks = 0
+
 /** A fake API backed by an in-memory history, newest first. */
 function givenTheApiHasHistory(...initial: Conversion[]) {
   const history = [...initial]
   rejections.clear()
   conversions = 0
   clears = 0
+  ticks = 0
   server.use(
+    // The live clock: any time reads as 16:50:06's lamps, the page only needs an answer.
+    http.get('/api/berlin-clock', ({ request }) => {
+      ticks++
+      const time = new URL(request.url).searchParams.get('time')
+      const { id: _id, convertedAt: _convertedAt, ...reading } = conversion(0, '16:50:06')
+      return HttpResponse.json({ ...reading, time })
+    }),
     http.get('/api/conversions', () => HttpResponse.json(history)),
     http.delete('/api/conversions', () => {
       clears++
@@ -430,19 +442,40 @@ describe('Clearing the history', () => {
     expect(recentConversions().getByRole('button', { name: 'Clear history' })).toBeDisabled()
   })
 
-  it('tells that an opened conversion no longer exists', async () => {
+  it('closes an opened conversion and returns to the home page, without a new Back step', async () => {
     const user = userEvent.setup()
     givenTheApiHasHistory(conversion(1, '00:00:00'))
     givenTheAddressIs('/conversions/1')
     render(<App />)
     await within(await screen.findByRole('region', { name: 'Result' })).findByText('YOOOOOOOOOOOOOOOOOOOOOOO')
+    const steps = window.history.length
 
     await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
     await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
 
-    const result = within(screen.getByRole('region', { name: 'Result' }))
+    await recentConversions().findByText('No conversions yet')
+    expect(screen.queryByRole('region', { name: 'Result' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(window.history.length).toBe(steps)
+  })
+
+  it('still says not found when a cleared conversion is opened from its old link', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await recentConversions().findByText('00:00:00')
+    await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
+    await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
+    await recentConversions().findByText('No conversions yet')
+
+    act(() => {
+      window.history.pushState(null, '', '/conversions/1')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    const result = within(await screen.findByRole('region', { name: 'Result' }))
     expect(await result.findByRole('alert')).toHaveTextContent('Conversion 1 not found')
-    expect(window.location.pathname).toBe('/conversions/1')
   })
 })
 
@@ -503,5 +536,40 @@ describe('Invalid times', () => {
     await screen.findByRole('region', { name: 'Result' })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(input).not.toHaveAttribute('aria-invalid')
+  })
+})
+
+describe('The live clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date(2026, 9, 6, 16, 50, 6))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('is shown above the converter', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    const live = screen.getByRole('region', { name: 'Live' })
+    expect(within(live).getByRole('img', { name: 'Berlin Clock showing 16:50:06' })).toBeInTheDocument()
+    const converter = screen.getByRole('region', { name: 'Convert a time' })
+    expect(live.compareDocumentPosition(converter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('does not save its ticks in the history', async () => {
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    await act(() => vi.advanceTimersByTimeAsync(60_000))
+
+    expect(ticks).toBe(61)
+    expect(conversions).toBe(0)
+    expect(within(screen.getByRole('region', { name: 'Live' })).getByText('16:51:06')).toBeInTheDocument()
+    expect(recentConversions().getAllByRole('listitem')).toHaveLength(1)
   })
 })

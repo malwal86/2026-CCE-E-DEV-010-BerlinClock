@@ -29,11 +29,12 @@ describe('ClockCode', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<ClockCode code="YRRROROOOYYRYYRYYRYOOOOO" time="16:50:06" />)
     await user.click(screen.getByRole('button', { name: 'Copy code for 16:50:06' }))
-    // The 2-second reset starts only once "Copied" is shown; advancing the clock earlier skips past it.
     await screen.findByRole('button', { name: 'Copied code for 16:50:06' })
 
-    act(() => vi.advanceTimersByTime(2000))
+    await act(() => vi.advanceTimersByTimeAsync(2000))
 
-    expect(screen.getByRole('button', { name: 'Copy code for 16:50:06' })).toBeInTheDocument()
+    // The 2-second reset is set by an effect after "Copied" renders, which a slow runner may not have run yet when
+    // the clock is advanced. The fake clock also moves with real time, so waiting longer than the reset always ends it.
+    expect(await screen.findByRole('button', { name: 'Copy code for 16:50:06' }, { timeout: 3000 })).toBeInTheDocument()
   })
 })

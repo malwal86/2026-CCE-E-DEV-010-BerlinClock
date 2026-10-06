@@ -5,7 +5,8 @@
 The [Berlin Clock kata](https://stephane-genicot.github.io/BerlinClock.html), built test-first as
 vertical slices: **React UI → Spring Boot REST API → PostgreSQL**.
 
-Type a time, see it on a Berlin Clock, and find your earlier conversions in a persisted history.
+Watch the current time tick on a live Berlin Clock, type a time to convert it, and find your earlier conversions
+in a persisted history.
 
 > Delivery is organised as user stories, each one a full vertical slice you can try in the running app.
 > See [`docs/Berlin-Clock-User-Stories.pdf`](docs/Berlin-Clock-User-Stories.pdf).
@@ -21,7 +22,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A7 · The entire Berlin Clock as one 24-character code | ✅ Done |
 | B1 · Revisit a past conversion | ✅ Done |
 | B2 · Clear the history | ✅ Done |
-| C1 – D2 | Planned (see the PDF) |
+| C1 · Live clock ticking every second | ✅ Done |
+| C2 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -181,7 +183,8 @@ curl -s localhost:3000/api/conversions/999999
 1. Under **Recent conversions**, click **Clear history**. The page asks *"Delete all conversions? This cannot be
    undone."* with **Delete** and **Cancel** (no browser pop-up). Click **Cancel**: nothing changes.
 2. Click **Clear history** again, then **Delete**: the list says *"No conversions yet"* and the button is disabled.
-   If the result panel showed a conversion, it now says *"Conversion <id> not found"*.
+   If the result panel showed a conversion, it closes and the address returns to `/`. An old link to it
+   (or Back to it) says *"Conversion <id> not found"*.
 3. `docker compose restart`, then refresh the page: the history is still empty.
 4. Optional, count the rows: `docker compose exec db psql -U berlin -d berlin_clock -c "select count(*) from conversion"` → 0.
 
@@ -192,6 +195,24 @@ curl -s -X DELETE localhost:3000/api/conversions -o /dev/null -w '%{http_code}\n
 # 204
 curl -s localhost:3000/api/conversions
 # []
+```
+
+## Try it yourself (story C1)
+
+1. Open http://localhost:3000. The **Live** panel at the top shows your computer's current time as a Berlin Clock,
+   with the digital time and the code under it. It ticks every second and the round seconds lamp blinks.
+2. Wait a minute: **Recent conversions** is unchanged. Ticks are only read, never saved.
+3. DevTools → **Network**: one small `GET /api/berlin-clock?time=…` per second, and no `POST`.
+4. Optional, change your computer's time zone: the live clock follows the browser's local time, not the server's.
+
+Through the API (the endpoint is read-only, the database is not touched):
+
+```bash
+curl -s 'localhost:3000/api/berlin-clock?time=16:50:06'
+# {"time":"16:50:06","clock":"YRRROROOOYYRYYRYYRYOOOOO","seconds":"Y","fiveHours":"RRRO","singleHours":"ROOO",
+#  "fiveMinutes":"YYRYYRYYRYO","singleMinutes":"OOOO"}
+curl -s 'localhost:3000/api/berlin-clock?time=24:00:00'
+# {"detail":"Invalid time '24:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59","instance":"/api/berlin-clock",…}
 ```
 
 ## Run natively (for development)
@@ -218,9 +239,9 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 | Domain (Berlin Clock rules) | JUnit 5, AssertJ, parameterised kata tables, a property check over all 86,400 seconds | `BerlinClockTest`, `SecondsLampTest`, `FiveHoursRowTest`, `SingleHoursRowTest`, `FiveMinutesRowTest`, `SingleMinutesRowTest`, `DigitalTimeTest` |
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
-| Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest` |
-| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest` |
-| UI | Vitest, React Testing Library, MSW | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx` |
+| Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest`, `LiveClockControllerTest` |
+| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest` |
+| UI | Vitest, React Testing Library, MSW, fake timers for the live clock | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx`, `LiveClock.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
 on the `clock` package) and `npm run coverage` for the frontend.
@@ -236,12 +257,14 @@ backend/                     Spring Boot 4.1 · Java 21
       web/                   ConversionController, request/response DTOs, ConversionNotFoundException (404)
       application/           ConversionService use case, Conversion, ConversionHistory port
       persistence/           JdbcClient implementation of the port
+    live/                    Feature: read-only GET /api/berlin-clock for the live clock (web layer only, no DB)
     error/                   ApiExceptionHandler: errors shared by every feature, as problem+json
     BerlinClockApplicationConfiguration   System Clock bean (JDK type, so declared with @Bean)
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
   src/clock/                 Feature: BerlinClock, LampRow and ClockCode components + lamp/row types
   src/conversion/            Feature: ConvertForm, RecentConversions, API client, /conversions/:id route, Conversion type
+  src/live/                  Feature: LiveClock panel and the useLiveBerlinClock hook (one GET per second)
   src/App.tsx                Page: wires the features together
 docs/                        User stories (PDF + HTML source)
 docker-compose.yml           db + backend + frontend
@@ -255,6 +278,11 @@ docker-compose.yml           db + backend + frontend
 - **POST saves, GET reads.** `POST /api/conversions` returns `201 Created` with a `Location` header, and
   `GET /api/conversions/{id}` reads that conversion again (`404` problem detail when there is none).
   `DELETE /api/conversions` clears the history with `204 No Content`, and is idempotent.
+- **The live clock sends the browser's time and saves nothing.** Every second the page asks the read-only
+  `GET /api/berlin-clock?time=HH:mm:ss` for its own local time, so the rules stay in the backend and the server's
+  time zone (UTC inside Docker) never matters. Ticks are not saved: one row a second per tab would bury the real
+  history. Requests are numbered and an answer older than the one shown is dropped, so the clock never moves backwards;
+  each tick is scheduled for the next whole second.
 - **Destructive actions are confirmed inside the page**, not with the browser's `confirm()`: the question stays
   styled, testable and accessible, and focus starts on **Cancel**.
 - **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
