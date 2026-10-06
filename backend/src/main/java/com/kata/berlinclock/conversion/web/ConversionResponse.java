@@ -7,7 +7,7 @@ import com.kata.berlinclock.conversion.application.Conversion;
 
 
 record ConversionResponse(long id, String time, Instant convertedAt, String seconds, String fiveHours,
-		String singleHours) {
+		String singleHours, String fiveMinutes) {
 
 	private static final DateTimeFormatter DIGITAL_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -19,6 +19,7 @@ record ConversionResponse(long id, String time, Instant convertedAt, String seco
 				conversion.convertedAt(),
 				String.valueOf(berlinClock.seconds().symbol()),
 				berlinClock.fiveHours().notation(),
-				berlinClock.singleHours().notation());
+				berlinClock.singleHours().notation(),
+				berlinClock.fiveMinutes().notation());
 	}
 }

@@ -147,6 +147,39 @@ class ConversionApiAcceptanceTest {
 				.jsonPath("$[0].singleHours").isEqualTo("RRRO");
 	}
 
+	@Test
+	void convertingATimeShowsItsFiveMinutesRow() {
+		client.post().uri("/api/conversions")
+				.contentType(APPLICATION_JSON)
+				.body("""
+						{"time": "12:35:00"}""")
+				.exchange()
+				.expectStatus().isCreated()
+				.expectBody()
+				.jsonPath("$.fiveHours").isEqualTo("RROO")
+				.jsonPath("$.singleHours").isEqualTo("RROO")
+				.jsonPath("$.fiveMinutes").isEqualTo("YYRYYRYOOOO");
+
+		client.get().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$[0].time").isEqualTo("12:35:00")
+				.jsonPath("$[0].fiveMinutes").isEqualTo("YYRYYRYOOOO");
+	}
+
+	@Test
+	void earlierConversionsGainTheFiveMinutesRow() {
+		jdbc.sql("INSERT INTO conversion (time, converted_at) VALUES ('23:59:59', '2026-10-05T14:03:12Z')").update();
+
+		client.get().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$[0].time").isEqualTo("23:59:59")
+				.jsonPath("$[0].fiveMinutes").isEqualTo("YYRYYRYYRYY");
+	}
+
 	@ParameterizedTest(name = "{0}")
 	@ValueSource(strings = { "25:00:00", "24:00:00", "12:60:00", "12:00:60", "1:2:3", "12-00-00", "12:00", "noon" })
 	void anInvalidTimeIsRejectedAndNotSaved(String time) {
