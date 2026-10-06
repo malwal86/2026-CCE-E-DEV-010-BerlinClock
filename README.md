@@ -45,7 +45,7 @@ Then open **http://localhost:3000**.
 |---|---|---|
 | UI (nginx) | http://localhost:3000 | Proxies `/api` to the backend: one origin, no CORS |
 | API (Spring Boot) | http://localhost:8080/api/conversions | |
-| API docs (Swagger UI) | http://localhost:8080/swagger-ui.html | Try every endpoint; OpenAPI 3 document at `/v3/api-docs` |
+| API docs (Swagger UI) | http://localhost:8080/swagger-ui.html | Try every endpoint; the contract is `/openapi.yaml` (also at `/v3/api-docs`) |
 | PostgreSQL 17 | `localhost:5433`, db `berlin_clock`, user/password `berlin` | Host port 5433 avoids clashing with a local PostgreSQL |
 
 Stop with `Ctrl+C`, or `docker compose down`. The history survives restarts. To wipe it, use **Clear history** in the page (story B2) or
@@ -249,7 +249,8 @@ curl -s 'localhost:3000/api/berlin-clock?time=12:00:00'
    of the new conversion.
 3. **GET /api/conversions** → **Try it out** → **Execute**: the new entry is first. It also appears in **Recent
    conversions** at http://localhost:3000.
-4. The machine-readable document: `curl -s localhost:8080/v3/api-docs` (OpenAPI 3.1, JSON).
+4. The machine-readable contract: `curl -s localhost:8080/v3/api-docs` (OpenAPI 3.0, YAML; the same file as
+   `/openapi.yaml`, edited in `backend/src/main/resources/static/openapi.yaml`).
 
 ## API reference
 
@@ -327,7 +328,8 @@ cd frontend && npm test           # Vitest + Testing Library + MSW
 | Use case | JUnit 5 + in-memory history fake + fixed `Clock` | `ConversionServiceTest` |
 | Persistence | `@JdbcTest` + Testcontainers PostgreSQL + Flyway | `JdbcConversionHistoryTest` |
 | Web | `@WebMvcTest` + `MockMvcTester` | `ConversionControllerTest`, `LiveClockControllerTest` |
-| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest`, `DatabaseDownAcceptanceTest` (stops its own PostgreSQL), `ApiDocumentationAcceptanceTest` (OpenAPI document and Swagger UI) |
+| API contract | `@WebMvcTest` + Atlassian OpenAPI validator: every documented answer, request and response checked against `openapi.yaml` | `ApiContractTest` |
+| Acceptance (full stack) | `@SpringBootTest` + `RestTestClient` + Testcontainers | `ConversionApiAcceptanceTest`, `LiveClockApiAcceptanceTest`, `DatabaseDownAcceptanceTest` (stops its own PostgreSQL), `ApiDocumentationAcceptanceTest` (contract and Swagger UI served) |
 | UI | Vitest, React Testing Library, MSW, fake timers for the live clock | `App.test.tsx`, `BerlinClock.test.tsx`, `ClockCode.test.tsx`, `LiveClock.test.tsx` |
 
 Coverage: `backend/target/site/jacoco/index.html` (the build **fails** below 100% line/branch coverage
@@ -378,10 +380,12 @@ docker-compose.yml           db + backend + frontend
   second until it answers. Timeouts are kept short so this shows within ~2 s: Hikari's connection timeout (30 s by
   default) and nginx's proxy connect timeout (60 s by default). Flyway retries at start-up, so a late database
   does not stop the backend.
-- **The API documents itself from the code.** springdoc generates the OpenAPI document from the controllers, so it
-  cannot drift from them. Annotations (summaries, examples, every error as a `ProblemDetail`) sit on the controllers
-  and DTOs only, and the `clock` package stays plain Java. Swagger UI is on the backend's port (`:8080`), not behind
-  nginx, so the UI on `:3000` only exposes `/api`.
+- **The API contract is one hand-written file, checked by tests.** `backend/src/main/resources/static/openapi.yaml`
+  describes every endpoint, its examples and every error as a `ProblemDetail`, so the Java code carries no
+  documentation annotations. `ApiContractTest` produces every documented answer from the real controllers and
+  validates request and response against the file (unknown fields, missing statuses and wrong shapes fail the
+  build), so the two cannot drift apart silently. Swagger UI is a static page using the `swagger-ui` webjar, on the
+  backend's port (`:8080`), not behind nginx, so the UI on `:3000` only exposes `/api`.
 - **Destructive actions are confirmed inside the page**, not with the browser's `confirm()`: the question stays
   styled, testable and accessible, and focus starts on **Cancel**.
 - **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
