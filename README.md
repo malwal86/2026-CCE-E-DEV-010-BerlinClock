@@ -19,7 +19,8 @@ Type a time, see it on a Berlin Clock, and find your earlier conversions in a pe
 | A5 · Five-minutes row | ✅ Done |
 | A6 · Single-minutes row | ✅ Done |
 | A7 · The entire Berlin Clock as one 24-character code | ✅ Done |
-| B1 – D2 | Planned (see the PDF) |
+| B1 · Revisit a past conversion | ✅ Done |
+| B2 – D2 | Planned (see the PDF) |
 
 ---
 
@@ -154,6 +155,25 @@ curl -s -X POST localhost:3000/api/conversions -H 'Content-Type: application/jso
 #  "singleHours":"ROOO","fiveMinutes":"YYRYYRYYRYO","singleMinutes":"OOOO"}
 ```
 
+## Try it yourself (story B1)
+
+1. In **Recent conversions**, click an older time (for example `23:59:59`). It opens in full in the **Result**
+   panel, the address bar changes to `/conversions/<id>`, and the entry is highlighted as the one shown. Nothing
+   is added to the history.
+2. Copy the address into a new tab, or reload the page: the same conversion opens. Cmd/Ctrl-clicking an entry
+   opens it in a new tab too.
+3. Click two entries, then use the browser's **Back** and **Forward** buttons: the result follows.
+4. Change the id in the address to `999999`: the result panel says *"Conversion 999999 not found"*.
+
+Through the API (the `Location` returned by a POST is the address to read it again):
+
+```bash
+curl -s localhost:3000/api/conversions/7
+# {"id":7,"time":"16:50:06","convertedAt":"…","clock":"YRRROROOOYYRYYRYYRYOOOOO",…}
+curl -s localhost:3000/api/conversions/999999
+# {"detail":"Conversion 999999 not found","instance":"/api/conversions/999999","status":404,"title":"Conversion not found"}
+```
+
 ## Run natively (for development)
 
 Requirements: **JDK 21+**, **Node.js 22+**, **Docker** (for the database).
@@ -193,7 +213,7 @@ backend/                     Spring Boot 4.1 · Java 21
     clock/                   Feature: Berlin Clock rules (BerlinClock, Lamp, LampRow) and the strict HH:mm:ss
                              input contract (DigitalTime), pure Java, no framework
     conversion/              Feature: conversion history, layered inside
-      web/                   ConversionController + request/response DTOs
+      web/                   ConversionController, request/response DTOs, ConversionNotFoundException (404)
       application/           ConversionService use case, Conversion, ConversionHistory port
       persistence/           JdbcClient implementation of the port
     error/                   ApiExceptionHandler: errors shared by every feature, as problem+json
@@ -201,7 +221,7 @@ backend/                     Spring Boot 4.1 · Java 21
   src/main/resources/db/migration/   Flyway migrations
 frontend/                    React 19 · TypeScript · Vite
   src/clock/                 Feature: BerlinClock, LampRow and ClockCode components + lamp/row types
-  src/conversion/            Feature: ConvertForm, RecentConversions, API client, Conversion type
+  src/conversion/            Feature: ConvertForm, RecentConversions, API client, /conversions/:id route, Conversion type
   src/App.tsx                Page: wires the features together
 docs/                        User stories (PDF + HTML source)
 docker-compose.yml           db + backend + frontend
@@ -212,7 +232,11 @@ docker-compose.yml           db + backend + frontend
 - **All Berlin Clock logic lives in the backend `clock` package.** React only renders what the API returns.
 - **The database stores facts only** (the input time and when it was converted). The Berlin Clock is computed
   on read, so there is one source of truth and no stale data.
-- **POST saves, GET reads.** `POST /api/conversions` returns `201 Created` with a `Location` header.
+- **POST saves, GET reads.** `POST /api/conversions` returns `201 Created` with a `Location` header, and
+  `GET /api/conversions/{id}` reads that conversion again (`404` problem detail when there is none).
+- **The address matches the result.** Whatever the result panel shows lives at `/conversions/<id>`, so it can be
+  shared, reloaded or reached with Back. A small path helper replaces a router library; nginx (and Vite in dev)
+  serve `index.html` for any page.
 - **Strict input, checked in one place.** `DigitalTime` accepts only zero-padded `HH:mm:ss` from 00:00:00 to
   23:59:59 (`24:00:00` is rejected). The API takes the time as text so JSON binding cannot loosen the rule,
   and an invalid time never reaches the database.
