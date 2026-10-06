@@ -74,6 +74,17 @@ public class ConversionServiceTest {
 	}
 
 	@Test
+	void clearingEmptiesTheHistory() {
+		var saved = service.convert("00:00:00");
+		service.convert("23:59:59");
+
+		service.clear();
+
+		assertThat(service.recent()).isEmpty();
+		assertThat(service.find(saved.id())).isEmpty();
+	}
+
+	@Test
 	void anInvalidTimeIsNeverSaved() {
 		assertThatThrownBy(() -> service.convert("25:00:00")).isInstanceOf(InvalidTimeException.class);
 

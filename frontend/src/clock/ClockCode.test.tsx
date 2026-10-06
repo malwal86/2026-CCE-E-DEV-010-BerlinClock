@@ -29,6 +29,8 @@ describe('ClockCode', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<ClockCode code="YRRROROOOYYRYYRYYRYOOOOO" time="16:50:06" />)
     await user.click(screen.getByRole('button', { name: 'Copy code for 16:50:06' }))
+    // The 2-second reset starts only once "Copied" is shown; advancing the clock earlier skips past it.
+    await screen.findByRole('button', { name: 'Copied code for 16:50:06' })
 
     act(() => vi.advanceTimersByTime(2000))
 

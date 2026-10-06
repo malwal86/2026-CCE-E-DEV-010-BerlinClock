@@ -45,3 +45,54 @@ a.recent-list__time[aria-current='page'] {
   color: var(--text);
   text-decoration: none;
 }
+
+.recent-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.recent-header h2 {
+  margin: 0;
+}
+
+.recent-header__clear,
+.clear-confirmation button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.recent-header__clear:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.clear-confirmation {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: 0.5rem;
+}
+
+.clear-confirmation p {
+  margin: 0 0 0.5rem;
+}
+
+.clear-confirmation__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.clear-confirmation button.clear-confirmation__delete {
+  color: #fff;
+  border-color: var(--danger);
+  background: var(--danger);
+}

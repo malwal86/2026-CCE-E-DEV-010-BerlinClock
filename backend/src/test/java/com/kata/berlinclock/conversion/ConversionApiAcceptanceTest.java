@@ -321,6 +321,24 @@ class ConversionApiAcceptanceTest {
 				.jsonPath("$.instance").isEqualTo("/api/conversions/999999");
 	}
 
+	@Test
+	void clearingTheHistoryDeletesEveryConversion() {
+		convert("00:00:00");
+		convert("23:59:59");
+
+		client.delete().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isNoContent()
+				.expectBody().isEmpty();
+
+		client.get().uri("/api/conversions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.json("[]", JsonCompareMode.STRICT);
+		assertThat(savedConversions()).isZero();
+	}
+
 	private long savedConversions() {
 		return jdbc.sql("SELECT count(*) FROM conversion").query(Long.class).single();
 	}

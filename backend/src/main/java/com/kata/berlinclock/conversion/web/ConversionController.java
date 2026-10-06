@@ -3,12 +3,15 @@ package com.kata.berlinclock.conversion.web;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -41,5 +44,11 @@ class ConversionController {
 	@GetMapping("/{id}")
 	ConversionResponse find(@PathVariable long id) {
 		return service.find(id).map(ConversionResponse::from).orElseThrow(() -> new ConversionNotFoundException(id));
+	}
+
+	@DeleteMapping
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void clear() {
+		service.clear();
 	}
 }

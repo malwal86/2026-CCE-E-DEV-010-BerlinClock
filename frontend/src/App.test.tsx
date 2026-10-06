@@ -34,13 +34,22 @@ const rejections = new Map<string, string>()
 /** How many times the fake API was asked to convert, to prove that opening a conversion saves nothing. */
 let conversions = 0
 
+/** How many times the fake API was asked to clear the history. */
+let clears = 0
+
 /** A fake API backed by an in-memory history, newest first. */
 function givenTheApiHasHistory(...initial: Conversion[]) {
   const history = [...initial]
   rejections.clear()
   conversions = 0
+  clears = 0
   server.use(
     http.get('/api/conversions', () => HttpResponse.json(history)),
+    http.delete('/api/conversions', () => {
+      clears++
+      history.length = 0
+      return new HttpResponse(null, { status: 204 })
+    }),
     http.get('/api/conversions/:id', ({ params }) => {
       const found = history.find((conversion) => conversion.id === Number(params.id))
       if (!found) {
@@ -360,6 +369,80 @@ describe('Revisiting a conversion', () => {
 
     await waitForElementToBeRemoved(() => screen.queryByRole('region', { name: 'Result' }))
     expect(window.location.pathname).toBe('/')
+  })
+})
+
+describe('Clearing the history', () => {
+  const QUESTION = 'Delete all conversions? This cannot be undone.'
+
+  it('asks for confirmation inside the page', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    render(<App />)
+
+    await user.click(await recentConversions().findByRole('button', { name: 'Clear history' }))
+
+    const confirmation = within(recentConversions().getByRole('group', { name: QUESTION }))
+    expect(confirmation.getByText(QUESTION)).toBeInTheDocument()
+    expect(confirmation.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(confirmation.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    expect(clears).toBe(0)
+  })
+
+  it('empties the history when confirmed, also after a refresh', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    const { unmount } = render(<App />)
+    await user.click(await recentConversions().findByRole('button', { name: 'Clear history' }))
+
+    await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
+
+    expect(await recentConversions().findByText('No conversions yet')).toBeInTheDocument()
+    expect(recentConversions().queryByRole('listitem')).not.toBeInTheDocument()
+    expect(recentConversions().queryByRole('group', { name: QUESTION })).not.toBeInTheDocument()
+    expect(clears).toBe(1)
+
+    unmount()
+    render(<App />)
+    expect(await recentConversions().findByText('No conversions yet')).toBeInTheDocument()
+  })
+
+  it('keeps everything when cancelled', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(2, '23:59:59'), conversion(1, '00:00:00'))
+    render(<App />)
+    const clear = await recentConversions().findByRole('button', { name: 'Clear history' })
+    await user.click(clear)
+
+    await user.click(recentConversions().getByRole('button', { name: 'Cancel' }))
+
+    expect(recentConversions().queryByRole('group', { name: QUESTION })).not.toBeInTheDocument()
+    expect(recentConversions().getAllByRole('listitem')).toHaveLength(2)
+    expect(clear).toHaveFocus()
+    expect(clears).toBe(0)
+  })
+
+  it('cannot clear an empty history', async () => {
+    givenTheApiHasHistory()
+    render(<App />)
+
+    await recentConversions().findByText('No conversions yet')
+    expect(recentConversions().getByRole('button', { name: 'Clear history' })).toBeDisabled()
+  })
+
+  it('tells that an opened conversion no longer exists', async () => {
+    const user = userEvent.setup()
+    givenTheApiHasHistory(conversion(1, '00:00:00'))
+    givenTheAddressIs('/conversions/1')
+    render(<App />)
+    await within(await screen.findByRole('region', { name: 'Result' })).findByText('YOOOOOOOOOOOOOOOOOOOOOOO')
+
+    await user.click(recentConversions().getByRole('button', { name: 'Clear history' }))
+    await user.click(recentConversions().getByRole('button', { name: 'Delete' }))
+
+    const result = within(screen.getByRole('region', { name: 'Result' }))
+    expect(await result.findByRole('alert')).toHaveTextContent('Conversion 1 not found')
+    expect(window.location.pathname).toBe('/conversions/1')
   })
 })
 

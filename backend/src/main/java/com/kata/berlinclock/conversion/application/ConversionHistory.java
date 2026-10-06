@@ -16,4 +16,6 @@ public interface ConversionHistory {
 	List<Conversion> latest(int limit);
 
 	Optional<Conversion> findById(long id);
+
+	void deleteAll();
 }

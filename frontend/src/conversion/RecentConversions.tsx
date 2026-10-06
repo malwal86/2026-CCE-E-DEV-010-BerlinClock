@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { Conversion } from './types'
 import { conversionPath } from './route'
 import { BerlinClock } from '../clock/BerlinClock'
@@ -11,9 +11,32 @@ interface Props {
   onOpen: (id: number) => void
   /** The conversion shown in the result panel, marked as the current page. */
   openId?: number
+  /** Called once clearing is confirmed. */
+  onClear: () => Promise<void>
 }
 
-export function RecentConversions({ conversions, onOpen, openId }: Props) {
+const QUESTION = 'Delete all conversions? This cannot be undone.'
+
+export function RecentConversions({ conversions, onOpen, openId, onClear }: Props) {
+  const [confirming, setConfirming] = useState(false)
+  const clearButton = useRef<HTMLButtonElement>(null)
+  const cancelButton = useRef<HTMLButtonElement>(null)
+
+  // Keyboard and screen reader users land on the safe choice, and come back to where they were on Cancel.
+  useEffect(() => {
+    if (confirming) cancelButton.current?.focus()
+  }, [confirming])
+
+  function cancel() {
+    setConfirming(false)
+    clearButton.current?.focus()
+  }
+
+  async function confirm() {
+    await onClear()
+    setConfirming(false)
+  }
+
   function open(event: MouseEvent<HTMLAnchorElement>, id: number) {
     // A middle click or Cmd/Ctrl/Shift/Alt click is the browser's: a new tab or window on the same link.
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -23,7 +46,31 @@ export function RecentConversions({ conversions, onOpen, openId }: Props) {
 
   return (
     <section className="panel" aria-labelledby="recent-heading">
-      <h2 id="recent-heading">Recent conversions</h2>
+      <div className="recent-header">
+        <h2 id="recent-heading">Recent conversions</h2>
+        <button
+          ref={clearButton}
+          type="button"
+          className="recent-header__clear"
+          disabled={conversions.length === 0}
+          onClick={() => setConfirming(true)}
+        >
+          Clear history
+        </button>
+      </div>
+      {confirming && (
+        <div className="clear-confirmation" role="group" aria-labelledby="clear-question">
+          <p id="clear-question">{QUESTION}</p>
+          <div className="clear-confirmation__actions">
+            <button type="button" className="clear-confirmation__delete" onClick={confirm}>
+              Delete
+            </button>
+            <button ref={cancelButton} type="button" onClick={cancel}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {conversions.length === 0 ? (
         <p className="muted">No conversions yet</p>
       ) : (
