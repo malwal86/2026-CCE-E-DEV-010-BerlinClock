@@ -6,6 +6,7 @@ import { ClockCode } from './ClockCode'
 describe('ClockCode', () => {
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('shows the 24-character code as text', () => {
@@ -22,6 +23,16 @@ describe('ClockCode', () => {
 
     expect(await navigator.clipboard.readText()).toBe('YRRROROOOYYRYYRYYRYOOOOO')
     expect(screen.getByRole('button', { name: 'Copied code for 16:50:06' })).toBeInTheDocument()
+  })
+
+  it('says so when the browser refuses to copy', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new DOMException('Write permission denied.'))
+    render(<ClockCode code="YRRROROOOYYRYYRYYRYOOOOO" time="16:50:06" />)
+
+    await user.click(screen.getByRole('button', { name: 'Copy code for 16:50:06' }))
+
+    expect(await screen.findByRole('button', { name: "Couldn't copy code for 16:50:06" })).toBeInTheDocument()
   })
 
   it('offers to copy again a moment later', async () => {

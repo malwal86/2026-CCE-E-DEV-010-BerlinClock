@@ -6,7 +6,7 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 
 /**
- * The input contract shared by every story: a strict HH:mm:ss time of day, 00:00:00 to 23:59:59.
+ * The time format shared by every story: a strict HH:mm:ss time of day, 00:00:00 to 23:59:59.
  */
 public final class DigitalTime {
 
@@ -27,5 +27,10 @@ public final class DigitalTime {
 			throw new InvalidTimeException(
 					"Invalid time '%s': expected HH:mm:ss between 00:00:00 and 23:59:59".formatted(text));
 		}
+	}
+
+	/** Always with its seconds, unlike {@link LocalTime#toString()}, which writes 12:00:00 as 12:00. */
+	public static String format(LocalTime time) {
+		return FORMAT.format(time);
 	}
 }

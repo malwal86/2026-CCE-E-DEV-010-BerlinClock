@@ -21,6 +21,10 @@ export class ApiProblem extends Error {
   }
 }
 
+export function rethrowUnlessApiProblem(error: unknown): asserts error is ApiProblem {
+  if (!(error instanceof ApiProblem)) throw error
+}
+
 /**
  * Sends a request to the API. A refusal comes back as its problem detail; a backend that cannot be reached, or an
  * error that is not a problem detail (such as the proxy's 502 page), becomes a problem saying `unavailable`.
@@ -56,7 +60,6 @@ export async function fetchConversion(id: number): Promise<Conversion> {
   return response.json()
 }
 
-/** Deletes every conversion. */
 export async function clearHistory(): Promise<void> {
   await send('/api/conversions', UNAVAILABLE, { method: 'DELETE' })
 }

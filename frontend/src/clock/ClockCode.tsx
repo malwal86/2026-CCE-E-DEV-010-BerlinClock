@@ -8,22 +8,27 @@ interface Props {
   time: string
 }
 
+const COPY = 'Copy'
+
 /** The clock as text, readable without seeing colours, with a button to copy it. */
 export function ClockCode({ code, time }: Props) {
-  const [copied, setCopied] = useState(false)
+  const [action, setAction] = useState(COPY)
 
   useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 2000)
+    if (action === COPY) return
+    const timer = setTimeout(() => setAction(COPY), 2000)
     return () => clearTimeout(timer)
-  }, [copied])
+  }, [action])
 
   async function copy() {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
+    try {
+      await navigator.clipboard.writeText(code)
+      setAction('Copied')
+    } catch {
+      setAction("Couldn't copy")
+    }
   }
 
-  const action = copied ? 'Copied' : 'Copy'
   return (
     <div className="clock-code">
       <code className="clock-code__text">{code}</code>
