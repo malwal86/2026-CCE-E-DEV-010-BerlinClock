@@ -51,6 +51,7 @@ class JdbcConversionHistory implements ConversionHistory {
 				.list();
 	}
 
+	@Override
 	public Optional<Conversion> findById(long id) {
 		return jdbc.sql("""
 				SELECT id, time, converted_at

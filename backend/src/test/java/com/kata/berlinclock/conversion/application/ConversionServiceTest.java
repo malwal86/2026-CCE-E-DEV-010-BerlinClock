@@ -50,6 +50,30 @@ public class ConversionServiceTest {
 	}
 
 	@Test
+	void findsASavedConversionById() {
+		service.convert("00:00:00");
+		var saved = service.convert("23:59:59");
+
+		assertThat(service.find(saved.id())).contains(saved);
+	}
+
+	@Test
+	void findsNothingForAnUnknownId() {
+		service.convert("23:59:59");
+
+		assertThat(service.find(999_999)).isEmpty();
+	}
+
+	@Test
+	void findingAConversionSavesNothing() {
+		var saved = service.convert("23:59:59");
+
+		service.find(saved.id());
+
+		assertThat(history.latest(10)).containsExactly(saved);
+	}
+
+	@Test
 	void anInvalidTimeIsNeverSaved() {
 		assertThatThrownBy(() -> service.convert("25:00:00")).isInstanceOf(InvalidTimeException.class);
 

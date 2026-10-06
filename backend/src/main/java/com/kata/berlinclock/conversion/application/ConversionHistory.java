@@ -3,6 +3,7 @@ package com.kata.berlinclock.conversion.application;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Port to wherever conversions are kept.
@@ -13,4 +14,6 @@ public interface ConversionHistory {
 
 	/** The {@code limit} most recent conversions, newest first. */
 	List<Conversion> latest(int limit);
+
+	Optional<Conversion> findById(long id);
 }
