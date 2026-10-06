@@ -11,82 +11,50 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
+import io.swagger.v3.parser.OpenAPIV3Parser;
+
 /**
- * Story D1 acceptance tests: the running application describes its own API, as an OpenAPI 3 document and as a
- * Swagger UI page where every request can be tried.
+ * Story D1 acceptance tests: the running application serves its API contract, as an OpenAPI 3 document and as a
+ * Swagger UI page where every request can be tried. {@link ApiContractTest} checks the contract matches the code.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @AutoConfigureRestTestClient
 @Import(TestcontainersConfiguration.class)
 class ApiDocumentationAcceptanceTest {
 
-	private static final String PROBLEM = "#/components/schemas/ProblemDetail";
-
 	@Autowired
 	private RestTestClient client;
 
 	@Test
-	void theOpenApiDocumentListsEveryEndpoint() {
-		client.get().uri("/v3/api-docs")
+	void theOpenApiDocumentIsValidAndListsEveryEndpoint() {
+		var document = client.get().uri("/v3/api-docs")
 				.exchange()
 				.expectStatus().isOk()
-				.expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
-				.expectBody()
-				.jsonPath("$.openapi").value(String.class, version -> assertThat(version).startsWith("3."))
-				.jsonPath("$.paths['/api/conversions'].post").exists()
-				.jsonPath("$.paths['/api/conversions'].get").exists()
-				.jsonPath("$.paths['/api/conversions'].delete").exists()
-				.jsonPath("$.paths['/api/conversions/{id}'].get").exists()
-				.jsonPath("$.paths['/api/berlin-clock'].get").exists();
+				.expectBody(String.class).returnResult().getResponseBody();
+
+		var parsed = new OpenAPIV3Parser().readContents(document);
+
+		assertThat(parsed.getMessages()).isEmpty();
+		var paths = parsed.getOpenAPI().getPaths();
+		assertThat(paths.get("/api/conversions").getPost()).isNotNull();
+		assertThat(paths.get("/api/conversions").getGet()).isNotNull();
+		assertThat(paths.get("/api/conversions").getDelete()).isNotNull();
+		assertThat(paths.get("/api/conversions/{id}").getGet()).isNotNull();
+		assertThat(paths.get("/api/berlin-clock").getGet()).isNotNull();
 	}
 
 	@Test
-	void theTimeIsDocumentedWithItsPatternAndAKataExample() {
-		client.get().uri("/v3/api-docs")
-				.exchange()
-				.expectBody()
-				.jsonPath("$.components.schemas.ConversionRequest.properties.time.pattern")
-				.isEqualTo("^\\d{2}:\\d{2}:\\d{2}$")
-				.jsonPath("$.components.schemas.ConversionRequest.properties.time.example").isEqualTo("16:50:06")
-				.jsonPath("$.paths['/api/berlin-clock'].get.parameters[0].schema.pattern")
-				.isEqualTo("^\\d{2}:\\d{2}:\\d{2}$")
-				.jsonPath("$.paths['/api/berlin-clock'].get.parameters[0].example").isEqualTo("16:50:06")
-				.jsonPath("$.components.schemas.ConversionResponse.properties.clock.example")
-				.isEqualTo("YRRROROOOYYRYYRYYRYOOOOO");
-	}
-
-	@Test
-	void everyErrorIsDocumentedAsAProblemDetail() {
-		client.get().uri("/v3/api-docs")
-				.exchange()
-				.expectBody()
-				.jsonPath("$.paths['/api/conversions'].post.responses['201']").exists()
-				.jsonPath("$.paths['/api/conversions'].post.responses['400'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/conversions'].post.responses['503'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/conversions'].get.responses['503'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/conversions'].delete.responses['204']").exists()
-				.jsonPath("$.paths['/api/conversions'].delete.responses['503'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/conversions/{id}'].get.responses['404'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/conversions/{id}'].get.responses['503'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/berlin-clock'].get.responses['400'].content['application/problem+json'].schema.$ref")
-				.isEqualTo(PROBLEM)
-				.jsonPath("$.paths['/api/berlin-clock'].get.responses['503']").doesNotExist();
-	}
-
-	@Test
-	void theSwaggerUiIsServed() {
+	void theSwaggerUiIsServedWithTheContract() {
 		client.get().uri("/swagger-ui.html")
 				.exchange()
-				.expectStatus().is3xxRedirection();
-		client.get().uri("/swagger-ui/index.html")
-				.exchange()
 				.expectStatus().isOk()
-				.expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML);
+				.expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+				.expectBody(String.class).value(page -> assertThat(page).contains("url: '/openapi.yaml'"));
+		client.get().uri("/webjars/swagger-ui/swagger-ui-bundle.js")
+				.exchange()
+				.expectStatus().isOk();
+		client.get().uri("/openapi.yaml")
+				.exchange()
+				.expectStatus().isOk();
 	}
 }

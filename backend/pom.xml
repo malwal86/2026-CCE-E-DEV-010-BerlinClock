@@ -17,7 +17,8 @@
 	<properties>
 		<java.version>21</java.version>
 		<jacoco.version>0.8.15</jacoco.version>
-		<springdoc.version>3.1.1</springdoc.version>
+		<swagger-ui.version>5.33.1</swagger-ui.version>
+		<openapi-request-validator.version>3.0.0</openapi-request-validator.version>
 	</properties>
 
 	<dependencies>
@@ -43,9 +44,13 @@
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>${springdoc.version}</version>
+			<groupId>org.webjars</groupId>
+			<artifactId>swagger-ui</artifactId>
+			<version>${swagger-ui.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.webjars</groupId>
+			<artifactId>webjars-locator-lite</artifactId>
 		</dependency>
 
 		<dependency>
@@ -76,6 +81,12 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.atlassian.oai</groupId>
+			<artifactId>openapi-request-validator-mockmvc</artifactId>
+			<version>${openapi-request-validator.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

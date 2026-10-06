@@ -1,0 +1,290 @@
+# The API contract, written by hand. ApiContractTest checks every response the controllers give against it,
+# so a change on either side that the other does not follow fails the build.
+openapi: 3.0.3
+info:
+  title: Berlin Clock API
+  version: v1
+  description: >-
+    Convert a time (HH:mm:ss) to the Berlin Clock and keep a history of conversions.
+    Errors are RFC 9457 problem details (application/problem+json).
+
+tags:
+  - name: Conversions
+    description: Convert a time and keep it in the history
+  - name: Live clock
+    description: Show any time as a Berlin Clock without saving it
+
+paths:
+  /api/conversions:
+    post:
+      tags: [Conversions]
+      summary: Convert a time and save it in the history
+      operationId: convert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversionRequest'
+      responses:
+        '201':
+          description: Converted and saved
+          headers:
+            Location:
+              description: Where to read this conversion again
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8080/api/conversions/12
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversion'
+        '400':
+          description: The time is missing or not a valid HH:mm:ss; nothing is saved
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: Invalid time
+                status: 400
+                detail: "Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59"
+                instance: /api/conversions
+        '503':
+          description: The history's database is down; nothing is saved
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: History unavailable
+                status: 503
+                detail: History is temporarily unavailable. Your conversion was not saved.
+                instance: /api/conversions
+    get:
+      tags: [Conversions]
+      summary: The latest 10 conversions, newest first
+      operationId: recent
+      responses:
+        '200':
+          description: The latest conversions, possibly none
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 10
+                items:
+                  $ref: '#/components/schemas/Conversion'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+    delete:
+      tags: [Conversions]
+      summary: Clear the history
+      description: Deletes every conversion. Clearing an empty history is fine too.
+      operationId: clear
+      responses:
+        '204':
+          description: The history is empty
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /api/conversions/{id}:
+    get:
+      tags: [Conversions]
+      summary: Read a past conversion again
+      operationId: find
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the conversion
+          schema:
+            type: integer
+            format: int64
+          example: 12
+      responses:
+        '200':
+          description: The conversion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversion'
+        '404':
+          description: No conversion has this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: Conversion not found
+                status: 404
+                detail: Conversion 999999 not found
+                instance: /api/conversions/999999
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
+
+  /api/berlin-clock:
+    get:
+      tags: [Live clock]
+      summary: Show a time as a Berlin Clock, without saving it
+      description: Used by the live clock every second. The database is never touched, so there is no 503.
+      operationId: show
+      parameters:
+        - name: time
+          in: query
+          required: true
+          description: Time to show, zero-padded, from 00:00:00 to 23:59:59
+          schema:
+            $ref: '#/components/schemas/DigitalTime'
+      responses:
+        '200':
+          description: The time as a Berlin Clock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerlinClock'
+        '400':
+          description: The time is missing or not a valid HH:mm:ss
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: Invalid time
+                status: 400
+                detail: "Invalid time '24:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59"
+                instance: /api/berlin-clock
+
+components:
+  responses:
+    HistoryUnavailable:
+      description: The history's database is down
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            title: History unavailable
+            status: 503
+            detail: History is temporarily unavailable.
+            instance: /api/conversions
+
+  schemas:
+    DigitalTime:
+      type: string
+      description: >-
+        Zero-padded HH:mm:ss from 00:00:00 to 23:59:59 (24:00:00 is rejected).
+        The pattern gives the shape; the range is checked by the API.
+      pattern: '^\d{2}:\d{2}:\d{2}$'
+      example: '16:50:06'
+
+    ConversionRequest:
+      type: object
+      required: [time]
+      properties:
+        time:
+          $ref: '#/components/schemas/DigitalTime'
+
+    BerlinClock:
+      type: object
+      description: A time as a Berlin Clock, not saved.
+      required: [time, clock, seconds, fiveHours, singleHours, fiveMinutes, singleMinutes]
+      properties:
+        time:
+          $ref: '#/components/schemas/DigitalTime'
+        clock:
+          $ref: '#/components/schemas/ClockCode'
+        seconds:
+          $ref: '#/components/schemas/SecondsLamp'
+        fiveHours:
+          $ref: '#/components/schemas/FiveHoursRow'
+        singleHours:
+          $ref: '#/components/schemas/SingleHoursRow'
+        fiveMinutes:
+          $ref: '#/components/schemas/FiveMinutesRow'
+        singleMinutes:
+          $ref: '#/components/schemas/SingleMinutesRow'
+
+    Conversion:
+      type: object
+      description: A saved conversion. The Berlin Clock is computed from the time every time it is read.
+      required: [id, time, convertedAt, clock, seconds, fiveHours, singleHours, fiveMinutes, singleMinutes]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Id of the conversion, also the end of its Location
+          example: 12
+        time:
+          $ref: '#/components/schemas/DigitalTime'
+        convertedAt:
+          type: string
+          format: date-time
+          description: When it was converted, UTC, ISO-8601
+          example: '2026-10-05T14:03:12Z'
+        clock:
+          $ref: '#/components/schemas/ClockCode'
+        seconds:
+          $ref: '#/components/schemas/SecondsLamp'
+        fiveHours:
+          $ref: '#/components/schemas/FiveHoursRow'
+        singleHours:
+          $ref: '#/components/schemas/SingleHoursRow'
+        fiveMinutes:
+          $ref: '#/components/schemas/FiveMinutesRow'
+        singleMinutes:
+          $ref: '#/components/schemas/SingleMinutesRow'
+
+    # Lamps are Y (yellow), R (red) or O (off), one character per lamp, left to right.
+    ClockCode:
+      type: string
+      description: The entire clock, 24 lamps from top to bottom (seconds + the four rows)
+      pattern: '^[YO][RO]{8}[YRO]{11}[YO]{4}$'
+      example: YRRROROOOYYRYYRYYRYOOOOO
+    SecondsLamp:
+      type: string
+      description: Seconds lamp, Y on even seconds and O on odd ones
+      enum: [Y, O]
+      example: Y
+    FiveHoursRow:
+      type: string
+      description: Five-hours row, 4 lamps, each lit lamp is 5 hours
+      pattern: '^[RO]{4}$'
+      example: RRRO
+    SingleHoursRow:
+      type: string
+      description: Single-hours row, 4 lamps, each lit lamp is 1 hour
+      pattern: '^[RO]{4}$'
+      example: ROOO
+    FiveMinutesRow:
+      type: string
+      description: Five-minutes row, 11 lamps, each lit lamp is 5 minutes, R marks the quarters
+      pattern: '^[YRO]{11}$'
+      example: YYRYYRYYRYO
+    SingleMinutesRow:
+      type: string
+      description: Single-minutes row, 4 lamps, each lit lamp is 1 minute
+      pattern: '^[YO]{4}$'
+      example: OOOO
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457 problem detail
+      required: [title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          example: about:blank
+        title:
+          type: string
+          example: Invalid time
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: "Invalid time '25:00:00': expected HH:mm:ss between 00:00:00 and 23:59:59"
+        instance:
+          type: string
+          example: /api/conversions

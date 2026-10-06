@@ -13,8 +13,8 @@ spring:
     # Database late at start-up: wait for it instead of failing (10 tries, pausing 1 s, 2 s, 4 s… up to 2 min).
     connect-retries: 10
 server:
+  # The API contract (static/openapi.yaml, also at /v3/api-docs) is YAML, not a download.
+  mime-mappings:
+    yaml: application/yaml
   # Behind nginx: build absolute URLs (e.g. Location) from the X-Forwarded-* / Host headers.
   forward-headers-strategy: framework
-springdoc:
-  # Every answer is JSON (errors say application/problem+json themselves), not springdoc's default "*/*".
-  default-produces-media-type: application/json
