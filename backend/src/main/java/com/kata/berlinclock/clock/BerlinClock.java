@@ -26,7 +26,7 @@ public final class BerlinClock {
 
 	/** Four red lamps, one lit per hour left over after the five-hour blocks. */
 	public LampRow singleHours() {
-		return LampRow.light(time.getHour() % 5, 4, Lamp.RED);
+		return leftOverAfterFiveBlocks(time.getHour(), Lamp.RED);
 	}
 
 	/**
@@ -38,6 +38,16 @@ public final class BerlinClock {
 		return new LampRow(IntStream.rangeClosed(1, 11)
 				.mapToObj(position -> position > lit ? Lamp.OFF : fiveMinutesColour(position))
 				.toList());
+	}
+
+	/** Four yellow lamps, one lit per minute left over after the five-minute blocks. */
+	public LampRow singleMinutes() {
+		return leftOverAfterFiveBlocks(time.getMinute(), Lamp.YELLOW);
+	}
+
+	/** Four lamps, one lit per unit left over after the blocks of five counted by the row above. */
+	private static LampRow leftOverAfterFiveBlocks(int units, Lamp colour) {
+		return LampRow.light(units % 5, 4, colour);
 	}
 
 	private static Lamp fiveMinutesColour(int position) {
